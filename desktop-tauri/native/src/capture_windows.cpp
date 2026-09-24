@@ -95,11 +95,11 @@ struct DxPack {
         }
         Microsoft::WRL::ComPtr<IDXGIDevice> dxgi;
         if (FAILED(device->QueryInterface(IID_PPV_ARGS(dxgi.GetAddressOf())))) return false;
-        Microsoft::WRL::ComPtr<IUnknown> unk;
+        Microsoft::WRL::ComPtr<::IInspectable> unk;
         if (FAILED(CreateDirect3D11DeviceFromDXGIDevice(dxgi.Get(), unk.GetAddressOf()))) {
             return false;
         }
-        winrt_device = unk.Get();
+        winrt_device.copy_from(unk.Get());
         return winrt_device != nullptr;
     }
 };
@@ -181,8 +181,9 @@ private:
     void on_frame_arrived() {
         wgc::Direct3D11CaptureFrame frame = pool_.TryGetNextFrame();
         if (!frame) return;
-        auto access = frame.Surface().as<
-            wgd11::IDirect3DDxgiInterfaceAccess>();
+        // IDirect3DDxgiInterfaceAccess is a classic COM interface declared in
+        // the interop header's global namespace (not a winrt projection type).
+        auto access = frame.Surface().as<IDirect3DDxgiInterfaceAccess>();
         Microsoft::WRL::ComPtr<ID3D11Texture2D> tex;
         if (FAILED(access->GetInterface(IID_PPV_ARGS(tex.GetAddressOf())))) return;
 
