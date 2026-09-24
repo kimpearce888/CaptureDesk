@@ -178,7 +178,5 @@ pub fn register_protocol(_app: &AppHandle) -> Result<(), Box<dyn std::error::Err
             &format!("\"{exe}\" \"%1\""),
         );
     }
-    #[cfg(not(windows))]
-    let _ = app;
     Ok(())
 }
