@@ -55,6 +55,13 @@ namespace wgc = winrt::Windows::Graphics::Capture;
 namespace wgd = winrt::Windows::Graphics::DirectX;
 namespace wgd11 = winrt::Windows::Graphics::DirectX::Direct3D11;
 
+// Undocumented WGC interop interface (not projected by the SDK's C++/WinRT
+// headers); declared locally with its well-known GUID.
+struct __declspec(uuid("A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1"))
+IDirect3DDxgiInterfaceAccess : IUnknown {
+    virtual HRESULT STDMETHODCALLTYPE GetInterface(REFIID, void**) = 0;
+};
+
 // ---------------------------------------------------------------------------
 // base64 (thumbnails)
 // ---------------------------------------------------------------------------
@@ -99,7 +106,7 @@ struct DxPack {
         if (FAILED(CreateDirect3D11DeviceFromDXGIDevice(dxgi.Get(), unk.GetAddressOf()))) {
             return false;
         }
-        winrt_device.copy_from(unk.Get());
+        winrt_device = { unk.Detach(), winrt::take_ownership_from_abi };
         return winrt_device != nullptr;
     }
 };
@@ -181,8 +188,6 @@ private:
     void on_frame_arrived() {
         wgc::Direct3D11CaptureFrame frame = pool_.TryGetNextFrame();
         if (!frame) return;
-        // IDirect3DDxgiInterfaceAccess is a classic COM interface declared in
-        // the interop header's global namespace (not a winrt projection type).
         auto access = frame.Surface().as<IDirect3DDxgiInterfaceAccess>();
         Microsoft::WRL::ComPtr<ID3D11Texture2D> tex;
         if (FAILED(access->GetInterface(IID_PPV_ARGS(tex.GetAddressOf())))) return;
