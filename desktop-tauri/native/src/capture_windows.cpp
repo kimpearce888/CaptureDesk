@@ -17,15 +17,18 @@
 #include <d3d11.h>
 #include <dwmapi.h>
 #include <mfapi.h>
+#include <mferror.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
 #include <mmdeviceapi.h>
 #include <wincodec.h>
 #include <windows.graphics.capture.interop.h>
 #include <windows.graphics.directx.direct3d11.h>
+#include <windows.graphics.directx.direct3d11.interop.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
+#include <winrt/Windows.Graphics.DirectX.h>
 #include <winrt/Windows.UI.h>
 
 #include <wrl/client.h>
@@ -49,6 +52,8 @@ namespace {
 using namespace winrt;
 namespace wf = winrt::Windows::Foundation;
 namespace wgc = winrt::Windows::Graphics::Capture;
+namespace wgd = winrt::Windows::Graphics::DirectX;
+namespace wgd11 = winrt::Windows::Graphics::DirectX::Direct3D11;
 
 // ---------------------------------------------------------------------------
 // base64 (thumbnails)
@@ -94,7 +99,7 @@ struct DxPack {
         if (FAILED(CreateDirect3D11DeviceFromDXGIDevice(dxgi.Get(), unk.GetAddressOf()))) {
             return false;
         }
-        winrt_device = unk.get();
+        winrt_device = unk.Get();
         return winrt_device != nullptr;
     }
 };
@@ -118,7 +123,7 @@ public:
             origin_x = wr.left;
             origin_y = wr.top;
             try {
-                const Windows::UI::WindowId wid{hwnd_val};
+                const winrt::Windows::UI::WindowId wid{hwnd_val};
                 item = wgc::GraphicsCaptureItem::TryCreateFromWindowId(wid);
             } catch (...) {
                 return false; // requires Windows 11 or newer builds
@@ -143,8 +148,8 @@ public:
         on_frame_ = std::move(on_frame);
 
         pool_ = wgc::Direct3D11CaptureFramePool::Create(
-            dx_.winrt_device.as<wgc::DirectX::Direct3D11::IDirect3DDevice>(),
-            wgc::DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
+            dx_.winrt_device.as<wgd11::IDirect3DDevice>(),
+            wgd::DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
         session_ = pool_.CreateCaptureSession(item_);
         try {
             session_.IsCursorCaptureEnabled(false); // we draw our own ring
@@ -177,7 +182,7 @@ private:
         wgc::Direct3D11CaptureFrame frame = pool_.TryGetNextFrame();
         if (!frame) return;
         auto access = frame.Surface().as<
-            wgc::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess>();
+            wgd11::IDirect3DDxgiInterfaceAccess>();
         Microsoft::WRL::ComPtr<ID3D11Texture2D> tex;
         if (FAILED(access->GetInterface(IID_PPV_ARGS(tex.GetAddressOf())))) return;
 
@@ -264,7 +269,7 @@ public:
         }
         Microsoft::WRL::ComPtr<IAudioClient> client;
         if (FAILED(dev->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
-                                 IID_PPV_ARGS(client.GetAddressOf())))) {
+                                 reinterpret_cast<void**>(client.GetAddressOf())))) {
             return false;
         }
         WAVEFORMATEX* wfx = nullptr;
@@ -352,12 +357,12 @@ public:
             return false;
         }
         Microsoft::WRL::ComPtr<IMFMediaSource> src;
-        const HRESULT ahr = acts[0]->ActivateSource(IID_PPV_ARGS(src.GetAddressOf()));
+        const HRESULT ahr = acts[0]->ActivateObject(IID_PPV_ARGS(src.GetAddressOf()));
         CoTaskMemFree(acts);
         if (FAILED(ahr)) return false;
 
         Microsoft::WRL::ComPtr<IMFSourceReader> reader;
-        if (FAILED(MFCreateSourceReaderFromSource(src.Get(), nullptr, reader.GetAddressOf()))) {
+        if (FAILED(MFCreateSourceReaderFromMediaSource(src.Get(), nullptr, reader.GetAddressOf()))) {
             return false;
         }
         Microsoft::WRL::ComPtr<IMFMediaType> type;

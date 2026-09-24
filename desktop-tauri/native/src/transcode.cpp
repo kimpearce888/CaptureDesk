@@ -28,6 +28,10 @@ extern "C" {
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 namespace cde {
 
 // Small portability shim so the cancel path can clean up partial outputs.

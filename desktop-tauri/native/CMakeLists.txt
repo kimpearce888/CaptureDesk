@@ -1,5 +1,5 @@
 # CaptureDesk native engine (capturedesk-engine)
-# C++17 stdio sidecar: Windows capture (WGC/WASAPI/MF) + FFmpeg encode/transcode.
+# C++20 stdio sidecar: Windows capture (WGC/WASAPI/MF) + FFmpeg encode/transcode.
 #
 # Dependencies (vcpkg on Windows, system packages on Linux CI):
 #   nlohmann-json, ffmpeg (avcodec avformat avutil swscale swresample)
@@ -10,7 +10,9 @@
 cmake_minimum_required(VERSION 3.21)
 project(capturedesk-engine CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+# C++20: C++/WinRT (Windows.Graphics.Capture) requires <coroutine>; MSVC
+# deprecates the experimental C++17 coroutine headers.
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(nlohmann_json CONFIG REQUIRED)
