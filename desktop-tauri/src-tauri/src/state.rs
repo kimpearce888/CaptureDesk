@@ -3,7 +3,7 @@
 
 use serde_json::{json, Value};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Live recording session snapshot. Field names mirror the v1 renderer
 /// contract exactly (`rec-state` payloads, `getState().state`).
@@ -17,6 +17,8 @@ pub struct Session {
     pub last_file: Option<String>,
     pub camera_bubble: bool,
     pub mode: Option<String>,
+    /// Kept for v1 wire-contract parity; consumed by future source pickers.
+    #[allow(dead_code)]
     pub source_id: Option<String>,
 }
 
@@ -144,10 +146,11 @@ pub fn deep_link_file(argv: &[String]) -> Option<String> {
 
 /// Register the `capturedesk://` URL scheme per-user so the browser
 /// extension and shortcuts can launch CaptureDesk Desktop.
-pub fn register_protocol(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+pub fn register_protocol(_app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
+        use std::process::Command;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         let exe = std::env::current_exe()?.to_string_lossy().replace('/', "\\");
         let run = |sub: &str, value: &str| {

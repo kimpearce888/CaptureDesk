@@ -9,3 +9,7 @@ dist/CaptureDeskSetup.exe
 npm-debug.log*
 .DS_Store
 Thumbs.db
+
+# CaptureDesk v2 native stack — Rust/Tauri build artifacts
+desktop-tauri/src-tauri/target/
+desktop-tauri/src-tauri/gen/

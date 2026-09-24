@@ -121,7 +121,8 @@ fn reader_loop(stdout: ChildStdout, app: AppHandle) {
             }
         } else if let Some(id) = v.get("id").and_then(Value::as_u64) {
             let st = app.state::<EngineHandle>();
-            if let Some(tx) = st.pending.lock().unwrap().remove(&id) {
+            let tx = st.pending.lock().unwrap().remove(&id);
+            if let Some(tx) = tx {
                 let _ = tx.send(v);
             }
         }

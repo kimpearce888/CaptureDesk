@@ -1,7 +1,7 @@
 //! Native application menu (macOS only; Windows/Linux use the tray).
 
 use tauri::menu::{Menu, MenuItem, Submenu};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 pub fn install(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     if cfg!(target_os = "macos") {

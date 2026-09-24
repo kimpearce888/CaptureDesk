@@ -253,7 +253,7 @@ pub fn library_reveal(app: AppHandle, file: String) -> Value {
     reveal_inner(&app, &file)
 }
 
-pub fn reveal_inner(app: &AppHandle, file: &str) -> Value {
+pub fn reveal_inner(_app: &AppHandle, file: &str) -> Value {
     #[cfg(target_os = "windows")]
     let r = std::process::Command::new("explorer").arg(format!("/select,{file}")).spawn();
     #[cfg(target_os = "macos")]
@@ -409,7 +409,7 @@ pub fn shell_open_path(app: AppHandle, path: String) -> Value {
     shell_open_path_inner(&app, path)
 }
 
-pub fn shell_open_path_inner(app: &AppHandle, path: String) -> Value {
+pub fn shell_open_path_inner(_app: &AppHandle, path: String) -> Value {
     #[cfg(target_os = "windows")]
     let r = std::process::Command::new("explorer").arg(&path).spawn();
     #[cfg(target_os = "macos")]

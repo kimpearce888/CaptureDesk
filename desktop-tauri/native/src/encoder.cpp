@@ -20,7 +20,9 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+#include <algorithm>
 #include <mutex>
+#include <vector>
 
 namespace cde {
 
@@ -119,14 +121,14 @@ struct Encoder::Impl {
 Encoder::~Encoder() {
     if (impl_) {
         finish();
-        delete impl_;
     }
+    // impl_ (unique_ptr) is destroyed automatically.
 }
 
 std::unique_ptr<Encoder> Encoder::open(const std::string& path, int w, int h, int fps,
                                        bool with_audio, const std::string& quality) {
     auto enc = std::unique_ptr<Encoder>(new Encoder());
-    enc->impl_ = new Impl();
+    enc->impl_ = std::make_unique<Impl>();
     Impl& s = *enc->impl_;
 
     const std::string lower = [&] {
@@ -134,8 +136,12 @@ std::unique_ptr<Encoder> Encoder::open(const std::string& path, int w, int h, in
         for (auto& ch : l) ch = static_cast<char>(::tolower(static_cast<unsigned char>(ch)));
         return l;
     }();
-    const char* muxer = lower.ends_with(".mp4") ? "mp4"
-                        : lower.ends_with(".gif") ? "gif"
+    auto ends_with = [](const std::string& s, const std::string& suf) {
+        return s.size() >= suf.size() &&
+               s.compare(s.size() - suf.size(), suf.size(), suf) == 0;
+    };
+    const char* muxer = ends_with(lower, ".mp4") ? "mp4"
+                        : ends_with(lower, ".gif") ? "gif"
                                                   : "webm";
     s.is_gif = std::string(muxer) == "gif";
 
@@ -180,26 +186,44 @@ std::unique_ptr<Encoder> Encoder::open(const std::string& path, int w, int h, in
     s.vs->time_base = s.venc->time_base;
 
     // ---- audio encoder (webm/mp4) ----
+    // Open the audio codec BEFORE adding the stream: a failed open can then
+    // never leave a codec-less orphan stream behind (which would make
+    // avformat_write_header reject the whole file).
+    //   MP4 → AAC (fltp)   WebM → libopus / native opus (flt)
     if (with_audio && !s.is_gif) {
-        const AVCodec* ac = avcodec_find_encoder_by_name("libopus");
-        if (!ac) ac = avcodec_find_encoder(AV_CODEC_ID_OPUS);
-        if (!ac) ac = avcodec_find_encoder(AV_CODEC_ID_AAC);
-        if (ac) {
-            s.as = avformat_new_stream(s.fmt, nullptr);
-            s.aenc = avcodec_alloc_context3(ac);
-            s.aenc->sample_rate = 48000;
-            s.aenc->sample_fmt = AV_SAMPLE_FMT_FLTP;
+        const bool is_mp4 = av_guess_format("mp4", nullptr, nullptr) == s.fmt->oformat;
+        const AVCodec* candidates[2] = {nullptr, nullptr};
+        int ncand = 0;
+        if (is_mp4) {
+            candidates[ncand++] = avcodec_find_encoder(AV_CODEC_ID_AAC);
+        } else {
+            candidates[ncand++] = avcodec_find_encoder_by_name("libopus");
+            candidates[ncand++] = avcodec_find_encoder(AV_CODEC_ID_OPUS);
+        }
+        for (int i = 0; i < ncand && !s.aenc; ++i) {
+            const AVCodec* c = candidates[i];
+            if (!c) continue;
+            // libopus accepts s16/flt only; AAC accepts fltp.
+            const AVSampleFormat want = c->id == AV_CODEC_ID_OPUS
+                                            ? AV_SAMPLE_FMT_FLT
+                                            : AV_SAMPLE_FMT_FLTP;
+            AVCodecContext* test = avcodec_alloc_context3(c);
+            test->sample_rate = 48000;
+            test->sample_fmt = want;
             AVChannelLayout stereo = AV_CHANNEL_LAYOUT_STEREO;
-            av_channel_layout_copy(&s.aenc->ch_layout, &stereo);
-            s.aenc->time_base = AVRational{1, 48000};
-            s.aenc->bit_rate = 128'000;
+            av_channel_layout_copy(&test->ch_layout, &stereo);
+            test->time_base = AVRational{1, 48000};
+            test->bit_rate = 128'000;
             if (s.fmt->oformat->flags & AVFMT_GLOBALHEADER) {
-                s.aenc->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+                test->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
             }
-            if (avcodec_open2(s.aenc, ac, nullptr) >= 0) {
+            if (avcodec_open2(test, c, nullptr) >= 0) {
+                s.aenc = test;
+                s.as = avformat_new_stream(s.fmt, nullptr);
                 avcodec_parameters_from_context(s.as->codecpar, s.aenc);
                 s.as->time_base = s.aenc->time_base;
-                s.fifo = av_audio_fifo_alloc(s.aenc->sample_fmt, s.aenc->ch_layout.nb_channels,
+                s.fifo = av_audio_fifo_alloc(s.aenc->sample_fmt,
+                                             s.aenc->ch_layout.nb_channels,
                                              s.aenc->frame_size * 8);
                 s.aframe = av_frame_alloc();
                 s.aframe->format = s.aenc->sample_fmt;
@@ -208,8 +232,7 @@ std::unique_ptr<Encoder> Encoder::open(const std::string& path, int w, int h, in
                 s.aframe->nb_samples = s.aenc->frame_size;
                 av_frame_get_buffer(s.aframe, 0);
             } else {
-                s.as = nullptr;
-                avcodec_free_context(&s.aenc);
+                avcodec_free_context(&test);
             }
         }
     }
@@ -269,7 +292,7 @@ bool Encoder::write_audio_f32(const float* interleaved, int frames, int channels
         av_channel_layout_default(&in_layout, channels);
         AVChannelLayout out_layout;
         av_channel_layout_default(&out_layout, 2);
-        swr_alloc_set_opts2(&s.swr, &out_layout, AV_SAMPLE_FMT_FLTP, 48000, &in_layout,
+        swr_alloc_set_opts2(&s.swr, &out_layout, s.aenc->sample_fmt, 48000, &in_layout,
                             AV_SAMPLE_FMT_FLT, sample_rate, 0, nullptr);
         if (swr_init(s.swr) < 0) {
             s.swr = nullptr;
@@ -279,13 +302,14 @@ bool Encoder::write_audio_f32(const float* interleaved, int frames, int channels
         s.src_channels = channels;
     }
     const int out_frames = swr_get_out_samples(s.swr, frames);
-    std::vector<uint8_t> planar(48000 * 2 * sizeof(float) + 4096);
+    // Planar float32 scratch: left plane then right plane, each out_frames + 64.
+    std::vector<uint8_t> planar(2 * (out_frames + 64) * sizeof(float));
     float* left = reinterpret_cast<float*>(planar.data());
     float* right = left + out_frames + 64;
     uint8_t* dst_data[2] = {reinterpret_cast<uint8_t*>(left), reinterpret_cast<uint8_t*>(right)};
-    int dst_linesize = 0;
+    const uint8_t* in_ptr = reinterpret_cast<const uint8_t*>(interleaved);
     const int converted = swr_convert(s.swr, dst_data, out_frames,
-                                      &interleaved, frames);
+                                      &in_ptr, frames);
     if (converted <= 0) return true;
     av_audio_fifo_write(s.fifo, reinterpret_cast<void**>(dst_data), converted);
     s.send_receive_audio();

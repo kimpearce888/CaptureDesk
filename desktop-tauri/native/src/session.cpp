@@ -99,6 +99,18 @@ json Session::resume() {
     return json({{"ok", true}});
 }
 
+json Session::list_sources(const json& kinds) {
+#ifdef _WIN32
+    return list_sources_impl(kinds);
+#else
+    (void)kinds;
+    return json({{"ok", true},
+                 {"sources", json::array()},
+                 {"note", "Capture source enumeration requires Windows in the "
+                          "v2 native alpha; the Export pipeline works here."}});
+#endif
+}
+
 json Session::transcode(const json& spec, uint64_t id) {
     if (m_export_busy.load()) {
         return json({{"ok", false}, {"error", "An export is already running."}});
@@ -144,7 +156,8 @@ void Session::transcode_loop(json spec) {
 // ---------------------------------------------------------------------------
 
 void Session::capture_loop(StartParams p) {
-    const Clock::time_point t0 = Clock::now();
+    // Consumed by the Windows capture path for elapsed-time bookkeeping.
+    [[maybe_unused]] const Clock::time_point t0 = Clock::now();
     uint64_t paused_total_ms = 0;
 
     // Countdown (also gives WASAPI/WGC threads time to warm up).

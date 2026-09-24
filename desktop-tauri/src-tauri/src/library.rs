@@ -4,7 +4,7 @@
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 /// Canonical recording file name: CaptureDesk_YYYY-MM-DD_HH-mm-ss.webm
 pub fn recording_name(ext: &str) -> String {

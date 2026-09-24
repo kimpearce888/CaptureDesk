@@ -1,6 +1,7 @@
 #pragma once
 // CaptureDesk engine — shared protocol types and small utilities.
 #include <nlohmann/json.hpp>
+#include <atomic>
 #include <cstdint>
 #include <string>
 
@@ -9,6 +10,15 @@ namespace cde {
 using json = nlohmann::json;
 
 inline constexpr const char* kEngineVersion = "2.0.0-alpha.1";
+
+// ---- cross-TU engine plumbing (defined in main.cpp / transcode.cpp) ----
+/// Emit an async event line on stdout (defined in main.cpp).
+void emit_event(const json& ev);
+/// Emit a log event line (defined in main.cpp).
+void log_line(const std::string& line);
+/// Run a transcode/export job (defined in transcode.cpp); polls `cancel`.
+bool run_transcode(const json& spec, const std::atomic<bool>& cancel,
+                   const std::string& out, std::string& error);
 
 /// Parameters for the "start" command (mirrors the v1 renderer options).
 struct StartParams {

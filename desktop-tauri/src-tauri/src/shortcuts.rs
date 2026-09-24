@@ -3,7 +3,7 @@
 //! `hotkeysEnabled` setting.
 
 use serde_json::json;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
 pub fn register(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -29,7 +29,8 @@ pub fn dispatch(app: &AppHandle, shortcut: &Shortcut) {
 pub fn toggle_recording(app: &AppHandle) {
     let cur = {
         let st = app.state::<crate::state::AppState>();
-        st.session.lock().unwrap().state.clone()
+        let val = st.session.lock().unwrap().state.clone();
+        val
     };
     if matches!(cur.as_str(), "idle" | "error" | "") {
         let _ = crate::commands::rec_start_inner(app, json!({ "mode": "screen", "options": {} }));
@@ -41,7 +42,8 @@ pub fn toggle_recording(app: &AppHandle) {
 pub fn toggle_pause(app: &AppHandle) {
     let cur = {
         let st = app.state::<crate::state::AppState>();
-        st.session.lock().unwrap().state.clone()
+        let val = st.session.lock().unwrap().state.clone();
+        val
     };
     if cur == "paused" {
         let _ = crate::commands::rec_resume_inner(app);

@@ -65,16 +65,35 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y nlohmann-json3-dev libavformat-dev libavcodec-dev \
-            libavutil-dev libswscale-dev libswresample-dev cmake g++
+            libavutil-dev libswscale-dev libswresample-dev pkg-config cmake g++
       - name: Install engine deps (Windows, vcpkg)
         if: runner.os == 'Windows'
         run: |
           vcpkg install nlohmann-json ffmpeg[x264,vpx,opus] --triplet x64-windows
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
-      - name: Configure
-        run: cmake -S desktop-tauri/native -B desktop-tauri/native/build -DCMAKE_BUILD_TYPE=Release
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: cmake -S desktop-tauri/native -B desktop-tauri/native/build -DCMAKE_BUILD_TYPE=Release -DCAPTUREDESK_BUILD_TESTS=ON
+      - name: Configure (Windows, vcpkg toolchain)
+        if: runner.os == 'Windows'
+        run: |
+          cmake -S desktop-tauri/native -B desktop-tauri/native/build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows
       - name: Build
         run: cmake --build desktop-tauri/native/build --config Release --parallel
+      - name: Encode tests (WebM/MP4/GIF)
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+          ./desktop-tauri/native/build/capturedesk-encode-test /tmp/cd-ci-test.webm
+          ./desktop-tauri/native/build/capturedesk-encode-test /tmp/cd-ci-test.mp4
+          ./desktop-tauri/native/build/capturedesk-encode-test /tmp/cd-ci-test.gif
+          test -s /tmp/cd-ci-test.webm
+          test -s /tmp/cd-ci-test.mp4
+          test -s /tmp/cd-ci-test.gif
+          echo "encode pipeline OK"
 
   host:
     name: Native host (C# / .NET 8)

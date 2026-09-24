@@ -14,7 +14,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(nlohmann_json CONFIG REQUIRED)
-find_package(FFMPEG REQUIRED COMPONENTS avcodec avformat avutil swscale swresample)
+
+# FFmpeg detection — two supported layouts:
+#   1. pkg-config (Linux / system installs: libavcodec-dev, ...)
+#   2. vcpkg's unofficial-ffmpeg CMake config (Windows CI and dev)
+# Non-REQUIRED pkg_check_modules keeps Windows flowing to fallback (2).
+find_package(PkgConfig QUIET)
+if(PKG_CONFIG_FOUND)
+  pkg_check_modules(FFMPEG IMPORTED_TARGET
+    libavcodec libavformat libavutil libswscale libswresample)
+endif()
 
 add_executable(capturedesk-engine
   src/main.cpp
@@ -23,8 +32,33 @@ add_executable(capturedesk-engine
   src/transcode.cpp
 )
 
-target_include_directories(capturedesk-engine PRIVATE include ${FFMPEG_INCLUDE_DIRS})
-target_link_libraries(capturedesk-engine PRIVATE nlohmann_json::nlohmann_json ${FFMPEG_LIBRARIES})
+target_include_directories(capturedesk-engine PRIVATE include)
+
+set(CAPTUREDESK_FFMPEG_LIB "")
+if(TARGET PkgConfig::FFMPEG)
+  set(CAPTUREDESK_FFMPEG_LIB PkgConfig::FFMPEG)
+else()
+  set(CAPTUREDESK_FFMPEG_LIB
+    unofficial::ffmpeg::avcodec
+    unofficial::ffmpeg::avformat
+    unofficial::ffmpeg::avutil
+    unofficial::ffmpeg::swscale
+    unofficial::ffmpeg::swresample)
+endif()
+
+target_link_libraries(capturedesk-engine PRIVATE ${CAPTUREDESK_FFMPEG_LIB}
+                                                 nlohmann_json::nlohmann_json)
+
+# Portable encode/encode-test harness (regression test for the export
+# pipeline: WebM VP9+Opus, MP4 H.264+AAC, GIF). Runs on every platform
+# that can link FFmpeg; CI executes it on Linux.
+option(CAPTUREDESK_BUILD_TESTS "Build the encoder test harness" OFF)
+if(CAPTUREDESK_BUILD_TESTS)
+  add_executable(capturedesk-encode-test tests/encode_harness.cpp src/encoder.cpp)
+  target_include_directories(capturedesk-encode-test PRIVATE src include)
+  target_link_libraries(capturedesk-encode-test PRIVATE
+    nlohmann_json::nlohmann_json ${CAPTUREDESK_FFMPEG_LIB})
+endif()
 
 if(WIN32)
   target_sources(capturedesk-engine PRIVATE

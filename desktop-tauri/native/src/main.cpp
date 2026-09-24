@@ -39,6 +39,8 @@ void log_line(const std::string& line) {
 
 } // namespace cde
 
+using cde::json;
+
 int main() {
     std::ios::sync_with_stdio(false);
     std::cin.tie(nullptr);

@@ -15,7 +15,7 @@ mod state;
 mod tray;
 mod windows;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 pub fn run() {
     tauri::Builder::default()
@@ -23,7 +23,7 @@ pub fn run() {
             // A second launch (or a capturedesk:// deep link) focuses the
             // dashboard and honors an editor deep link when present.
             windows::focus_main(app);
-            if let Some(file) = state::deep_link_file(argv) {
+            if let Some(file) = state::deep_link_file(&argv) {
                 let _ = commands::open_editor_with_file(app, Some(file));
             }
         }))
