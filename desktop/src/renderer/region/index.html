@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CaptureDesk — select area</title>
+  <style>
+    * { margin: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      cursor: crosshair;
+      user-select: none;
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    #dim {
+      position: fixed; inset: 0;
+      background: rgba(11, 17, 32, 0.38);
+    }
+    #rect {
+      position: fixed;
+      border: 2px solid #14b8a6;
+      background: rgba(20, 184, 166, 0.10);
+      box-shadow: 0 0 0 9999em rgba(11, 17, 32, 0.38);
+      display: none;
+      border-radius: 4px;
+    }
+    #size {
+      position: fixed;
+      transform: translate(10px, 10px);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #334155;
+      color: #f1f5f9;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      display: none;
+      pointer-events: none;
+    }
+    #hint {
+      position: fixed;
+      top: 26px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #334155;
+      color: #f1f5f9;
+      padding: 9px 18px;
+      border-radius: 999px;
+      font-size: 13px;
+      box-shadow: 0 8px 24px rgba(2, 12, 27, 0.45);
+      pointer-events: none;
+    }
+    #hint b { color: #5eead4; }
+  </style>
+</head>
+<body>
+  <div id="dim"></div>
+  <div id="rect"></div>
+  <div id="size"></div>
+  <div id="hint">Drag to select the area to record — <b>Esc</b> to cancel</div>
+  <script src="region.js"></script>
+</body>
+</html>

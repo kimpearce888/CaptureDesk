@@ -1,0 +1,11 @@
+# CaptureDesk project ignores
+node_modules/
+build/
+tools/
+# CaptureDeskSetup.exe (~117 MB) exceeds GitHub's 100 MB git file limit —
+# it is published as a GitHub Releases asset instead of being tracked here.
+dist/CaptureDeskSetup.exe
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

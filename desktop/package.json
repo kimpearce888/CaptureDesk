@@ -1,0 +1,22 @@
+{
+  "name": "capturedesk-desktop",
+  "productName": "CaptureDesk",
+  "version": "1.0.0",
+  "description": "CaptureDesk Desktop — professional local screen recording, editing, and export. 100% on-device.",
+  "main": "src/main/index.js",
+  "author": "CaptureDesk Project",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "uiohook-napi": "^1.5.5"
+  },
+  "devDependencies": {
+    "electron": "44.4.5"
+  }
+}

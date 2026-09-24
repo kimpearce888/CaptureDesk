@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CaptureDesk Camera</title>
+  <style>
+    * { margin: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      border-radius: 50%;
+      user-select: none;
+    }
+    #wrap {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 3px solid rgba(94, 234, 212, 0.9);
+      box-shadow: 0 10px 30px rgba(2, 12, 27, 0.6);
+      -webkit-app-region: drag;
+      background: #0b1120;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      pointer-events: none;
+    }
+    #close {
+      position: absolute;
+      top: 8px;
+      right: 14px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid #334155;
+      color: #f1f5f9;
+      font-size: 12px;
+      line-height: 20px;
+      text-align: center;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    #wrap:hover #close { opacity: 1; }
+    #err {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 11px;
+      padding: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <video id="cam" autoplay muted playsinline></video>
+    <div id="err">Camera unavailable — check that no other app is using it.</div>
+    <div id="close" title="Hide camera bubble">×</div>
+  </div>
+  <script>
+    const video = document.getElementById('cam');
+    const err = document.getElementById('err');
+    navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false })
+      .then((stream) => { video.srcObject = stream; })
+      .catch(() => { err.style.display = 'flex'; });
+    document.getElementById('close').addEventListener('click', () => {
+      window.capturedesk.toggleCamBubble();
+    });
+    window.addEventListener('beforeunload', () => {
+      const s = video.srcObject;
+      if (s) for (const t of s.getTracks()) t.stop();
+    });
+  </script>
+</body>
+</html>

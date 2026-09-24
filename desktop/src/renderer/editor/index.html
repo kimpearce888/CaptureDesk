@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CaptureDesk Editor</title>
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="editor.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <svg width="20" height="20" viewBox="0 0 512 512" aria-hidden="true">
+          <defs><linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#14B8A6"/><stop offset="1" stop-color="#086E96"/>
+          </linearGradient></defs>
+          <rect width="512" height="512" rx="112" fill="url(#bg2)"/>
+          <rect x="96" y="118" width="320" height="232" rx="34" fill="none" stroke="#fff" stroke-width="26"/>
+          <circle cx="392" cy="342" r="56" fill="#fff"/><circle cx="392" cy="342" r="22" fill="#14B8A6"/>
+        </svg>
+        <span class="name">CaptureDesk Editor</span>
+      </div>
+      <div class="top-right">
+        <input class="cd filename" id="fileName" title="File name" />
+        <button class="iconbtn" id="closeBtn" title="Close CaptureDesk Editor">×</button>
+      </div>
+    </header>
+
+    <div class="main">
+      <section class="left">
+        <div class="stage" id="stage">
+          <video id="video" playsinline></video>
+          <canvas id="annot"></canvas>
+        </div>
+
+        <div class="transport">
+          <button class="tbtn" id="playBtn" title="Play/Pause (Space)">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="tbtn" id="backBtn" title="Back 1 frame"><span class="mono" style="font-size:11px">−1f</span></button>
+          <button class="tbtn" id="fwdBtn" title="Forward 1 frame"><span class="mono" style="font-size:11px">+1f</span></button>
+          <span class="time mono" id="timeLabel">00:00.0 / 00:00.0</span>
+          <select class="cd" id="speed" title="Playback speed">
+            <option value="0.5">0.5×</option><option value="1" selected>1×</option>
+            <option value="1.5">1.5×</option><option value="2">2×</option>
+          </select>
+        </div>
+
+        <div class="timeline" id="timeline">
+          <div class="track" id="track">
+            <div class="cut" id="cutLeft"></div>
+            <div class="cut" id="cutRight"></div>
+            <div class="sel" id="selRange"></div>
+            <div class="handle" id="hIn" title="Trim start"></div>
+            <div class="handle" id="hOut" title="Trim end"></div>
+            <div class="playhead" id="playhead"></div>
+          </div>
+          <div class="trim-labels mono"><span id="trimIn">0.00s</span><span id="trimOut">0.00s</span></div>
+          <button class="btn btn-ghost" id="resetTrim">Reset trim</button>
+        </div>
+
+        <div class="annot-bar">
+          <span class="ab-title">Annotate</span>
+          <div class="tool-group" id="tools">
+            <button class="tool active" data-tool="none" title="Select (no drawing)">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4l7 16 2.5-6.5L20 11z"/></svg>
+            </button>
+            <button class="tool" data-tool="pen" title="Pen">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20l4-1L20 7l-3-3L5 16l-1 4z"/></svg>
+            </button>
+            <button class="tool" data-tool="highlighter" title="Highlighter">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 15l6-9 5 3-6 9H6v-3z"/><path d="M4 21h16"/></svg>
+            </button>
+            <button class="tool" data-tool="arrow" title="Arrow">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20L18 6M18 6h-6M18 6v6"/></svg>
+            </button>
+            <button class="tool" data-tool="rect" title="Rectangle">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>
+            </button>
+          </div>
+          <div class="swatches" id="aColors">
+            <button class="swatch selected" data-color="#5EEAD4" style="background:#5EEAD4"></button>
+            <button class="swatch" data-color="#FBBF24" style="background:#FBBF24"></button>
+            <button class="swatch" data-color="#FFFFFF" style="background:#FFFFFF"></button>
+            <button class="swatch" data-color="#EF4444" style="background:#EF4444"></button>
+          </div>
+          <select class="cd" id="aWidth" title="Stroke width">
+            <option value="2">Thin</option><option value="4" selected>Medium</option><option value="8">Thick</option>
+          </select>
+          <button class="btn btn-ghost" id="undoBtn">Undo</button>
+          <button class="btn btn-ghost" id="clearBtn">Clear</button>
+          <span class="ab-hint" id="annotHint">Pause playback to draw annotations</span>
+        </div>
+      </section>
+
+      <aside class="right">
+        <h3>CaptureDesk Export</h3>
+        <p class="trim-summary" id="trimSummary">Trim: full clip</p>
+
+        <div class="fmt-list" id="fmtList">
+          <button class="fmt selected" data-fmt="webm">
+            <b>WebM</b><span>Fast, lossless trim (stream copy) · burning annotations exports as MP4</span>
+          </button>
+          <button class="fmt" data-fmt="mp4">
+            <b>MP4</b><span>More compatible — re-encodes (slower)</span>
+          </button>
+          <button class="fmt" data-fmt="gif">
+            <b>Animated GIF</b><span>12 fps, 480 px wide</span>
+          </button>
+        </div>
+
+        <label class="opt-row burn">
+          <span class="label">Burn annotations into export</span>
+          <label class="switch"><input type="checkbox" id="burnToggle" checked disabled />
+            <span class="track"><span class="thumb"></span></span></label>
+        </label>
+
+        <button class="btn btn-primary btn-lg" id="exportBtn" style="width:100%">Export</button>
+        <div class="progress" id="progressWrap">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <p class="progress-msg" id="progressMsg"></p>
+        <button class="btn btn-ghost" id="cancelExportBtn" style="display:none; width:100%">Cancel export</button>
+
+        <hr class="sep" />
+        <button class="btn btn-ghost" id="snapshotBtn" style="width:100%">Save PNG snapshot (current frame)</button>
+        <p class="about" id="engineNote"></p>
+      </aside>
+    </div>
+  </div>
+
+  <script src="../shared/toast.js"></script>
+  <script src="../../editor-core/compose.js"></script>
+  <script src="../../editor-core/trim.js"></script>
+  <script src="../../editor-core/annotate.js"></script>
+  <script src="../../editor-core/exporter.js"></script>
+  <script src="editor.js"></script>
+</body>
+</html>

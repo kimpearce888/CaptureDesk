@@ -1,0 +1,211 @@
+/* CaptureDesk shared design system — tokens, base styles, controls. */
+
+:root {
+  --brand-300: #5eead4;
+  --brand-500: #14b8a6;
+  --brand-600: #0d9488;
+  --cyan-700: #0e7490;
+  --slate-950: #0b1120;
+  --slate-900: #0f172a;
+  --slate-800: #1e293b;
+  --slate-700: #334155;
+  --slate-500: #64748b;
+  --slate-400: #94a3b8;
+  --slate-200: #e2e8f0;
+  --slate-100: #f1f5f9;
+  --rec-500: #ef4444;
+  --amber-400: #fbbf24;
+  --grad: linear-gradient(135deg, #14b8a6, #086e96);
+  --shadow: 0 8px 24px rgba(2, 12, 27, 0.45);
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--slate-950);
+  color: var(--slate-100);
+  font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system,
+    "Noto Sans", sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+input, select { font: inherit; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--slate-700); border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* --- buttons ------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: var(--r-sm);
+  font-weight: 600;
+  transition: background 0.15s var(--ease), transform 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: var(--grad);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(13, 148, 136, 0.35);
+}
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-ghost {
+  background: var(--slate-800);
+  border: 1px solid var(--slate-700);
+  color: var(--slate-100);
+}
+.btn-ghost:hover { background: var(--slate-700); }
+.btn-danger { background: rgba(239, 68, 68, 0.14); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
+.btn-danger:hover { background: rgba(239, 68, 68, 0.24); }
+.btn[disabled] { opacity: 0.45; pointer-events: none; }
+.btn-lg { padding: 13px 26px; font-size: 16px; border-radius: var(--r-md); }
+
+/* --- form controls -------------------------------------------------------- */
+.switch { position: relative; width: 40px; height: 22px; flex: none; cursor: pointer; }
+.switch input { display: none; }
+.switch .track {
+  position: absolute; inset: 0;
+  background: var(--slate-700);
+  border-radius: 999px;
+  transition: background 0.15s var(--ease);
+}
+.switch .thumb {
+  position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s var(--ease);
+}
+.switch input:checked + .track { background: var(--brand-500); }
+.switch input:checked + .track .thumb { transform: translateX(18px); }
+
+select.cd, input.cd {
+  background: var(--slate-800);
+  border: 1px solid var(--slate-700);
+  color: var(--slate-100);
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
+  outline: none;
+  user-select: text;
+}
+select.cd:focus, input.cd:focus { border-color: var(--brand-500); box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.25); }
+
+/* --- cards & panels ------------------------------------------------------- */
+.card {
+  background: var(--slate-900);
+  border: 1px solid var(--slate-700);
+  border-radius: var(--r-md);
+  padding: 16px;
+}
+.card.selected { border-color: var(--brand-500); box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.3); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(94, 234, 212, 0.12);
+  color: var(--brand-300);
+  border: 1px solid rgba(94, 234, 212, 0.3);
+}
+
+/* --- toggle row ------------------------------------------------------------ */
+.opt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 4px;
+}
+.opt-row .label { font-weight: 550; }
+.opt-row .hint { font-size: 12px; color: var(--slate-400); }
+
+/* --- recording pill ---------------------------------------------------------- */
+.rec-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--rec-500);
+  animation: cd-pulse 2s ease-in-out infinite;
+}
+@keyframes cd-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.mono { font-variant-numeric: tabular-nums; }
+
+/* --- modal ------------------------------------------------------------------- */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(4, 10, 24, 0.62);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: var(--slate-900);
+  border: 1px solid var(--slate-700);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  width: min(640px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--slate-800);
+}
+.modal .body { padding: 20px; overflow-y: auto; }
+
+/* --- toast --------------------------------------------------------------------- */
+#cd-toasts {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none;
+}
+.toast {
+  background: var(--slate-800);
+  border: 1px solid var(--slate-700);
+  color: var(--slate-100);
+  padding: 10px 16px;
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  animation: cd-toast-in 0.22s var(--ease);
+  max-width: 560px;
+}
+.toast.ok { border-color: rgba(20, 184, 166, 0.5); }
+.toast.err { border-color: rgba(239, 68, 68, 0.5); }
+@keyframes cd-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* --- brand mark (inline SVG geometry matches assets/icons) ------------------------ */
+.brand { display: inline-flex; align-items: center; gap: 10px; }
+.brand svg { display: block; }
+.brand .name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }

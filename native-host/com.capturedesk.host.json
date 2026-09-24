@@ -1,0 +1,7 @@
+{
+  "name": "com.capturedesk.host",
+  "description": "CaptureDesk native messaging host — saves CaptureDesk extension recordings directly to the local CaptureDesk Recordings folder.",
+  "path": "REPLACE_WITH_ABSOLUTE_PATH_TO/native-host.js",
+  "type": "stdio",
+  "allowed_extensions": ["capturedesk-extension-id-placeholder"]
+}
