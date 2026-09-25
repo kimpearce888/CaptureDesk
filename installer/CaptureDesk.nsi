@@ -22,17 +22,21 @@ SetCompressor /SOLID lzma
 !ifndef ROOTDIR
   !define ROOTDIR ".."
 !endif
-; Asset paths: makensis resolves File globs and Icon loads against different
-; bases depending on platform. Defaults keep the classic ROOTDIR-relative
-; layout; CI overrides them with script-local relative paths (see release.yml).
-!ifndef ICONDIR
-  !define ICONDIR "${ROOTDIR}/desktop/assets/icons"
+; Asset paths: Windows makensis only resolves canonical backslash paths
+; reliably, while POSIX builds need forward slashes. Each file can therefore
+; be overridden in full (CI passes absolute Windows paths); defaults keep the
+; portable ROOTDIR-relative layout for local builds. See release.yml.
+!ifndef CD_ICON_FILE
+  !define CD_ICON_FILE "${ROOTDIR}/desktop/assets/icons/CaptureDesk.ico"
 !endif
-!ifndef BITMAPDIR
-  !define BITMAPDIR "${ROOTDIR}/installer/assets"
+!ifndef CD_WELCOME_BITMAP_FILE
+  !define CD_WELCOME_BITMAP_FILE "${ROOTDIR}/installer/assets/sidebar.bmp"
 !endif
-!ifndef LICENSEFILE
-  !define LICENSEFILE "${ROOTDIR}/LICENSE"
+!ifndef CD_HEADER_BITMAP_FILE
+  !define CD_HEADER_BITMAP_FILE "${ROOTDIR}/installer/assets/header.bmp"
+!endif
+!ifndef CD_LICENSE_FILE
+  !define CD_LICENSE_FILE "${ROOTDIR}/LICENSE"
 !endif
 !ifndef CD_EXT_ID
   ; Chrome extension origin allowed to talk to the native host.
@@ -63,18 +67,18 @@ VIAddVersionKey "LegalCopyright" "MIT License - CaptureDesk Project"
 VIAddVersionKey "FileVersion" "${PRODUCTVER}"
 VIAddVersionKey "ProductVersion" "${PRODUCTVER}"
 
-!define MUI_ICON "${ICONDIR}/CaptureDesk.ico"
-!define MUI_UNICON "${ICONDIR}/CaptureDesk.ico"
-!define MUI_WELCOMEFINISHPAGE_BITMAP "${BITMAPDIR}/sidebar.bmp"
+!define MUI_ICON "${CD_ICON_FILE}"
+!define MUI_UNICON "${CD_ICON_FILE}"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "${CD_WELCOME_BITMAP_FILE}"
 !define MUI_HEADERIMAGE
-!define MUI_HEADERIMAGE_BITMAP "${BITMAPDIR}/header.bmp"
+!define MUI_HEADERIMAGE_BITMAP "${CD_HEADER_BITMAP_FILE}"
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\CaptureDesk.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "Launch CaptureDesk"
 
 ; Installer pages
 !insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_LICENSE "${LICENSEFILE}"
+!insertmacro MUI_PAGE_LICENSE "${CD_LICENSE_FILE}"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES

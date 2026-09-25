@@ -147,24 +147,21 @@ jobs:
           [ -f "$MAKEN" ] || MAKEN="$(command -v makensis)"
           echo "using makensis: $MAKEN"
           mkdir -p dist
-          # Stage script-local copies of the assets: compiling from installer/
-          # (= the script's own directory) with plain relative asset paths is
-          # the only form every makensis build resolves identically (File globs
-          # and Icon loads, CWD-relative and script-relative rules).
+          # Windows makensis resolves only canonical backslash paths reliably:
+          # stage the assets together and pass every path as an absolute
+          # Windows path (File globs and Icon loads alike).
           cp desktop/assets/icons/CaptureDesk.ico installer/assets/
-          cp LICENSE installer/
-          cd installer
           "$MAKEN" \
-            -DAPPSRC="$(cygpath -w "$PWD/../build/stage")" \
-            -DENGINESRC="$(cygpath -w "$PWD/../$ENGINE_PATH")" \
-            -DHOSTSRC="$(cygpath -w "$PWD/../native-host-cs/publish/capturedesk-native-host.exe")" \
+            -DAPPSRC="$(cygpath -w "$PWD/build/stage")" \
+            -DENGINESRC="$(cygpath -w "$PWD/$ENGINE_PATH")" \
+            -DHOSTSRC="$(cygpath -w "$PWD/native-host-cs/publish/capturedesk-native-host.exe")" \
             -DCD_EXT_ID="$EXT_ID" \
-            -DICONDIR="assets" \
-            -DBITMAPDIR="assets" \
-            -DLICENSEFILE="LICENSE" \
-            -DOUTFILE="$(cygpath -w "$PWD/../dist/CaptureDeskSetup.exe")" \
-            -V2 CaptureDesk.nsi
-          cd ..
+            -DCD_ICON_FILE="$(cygpath -w "$PWD/installer/assets/CaptureDesk.ico")" \
+            -DCD_WELCOME_BITMAP_FILE="$(cygpath -w "$PWD/installer/assets/sidebar.bmp")" \
+            -DCD_HEADER_BITMAP_FILE="$(cygpath -w "$PWD/installer/assets/header.bmp")" \
+            -DCD_LICENSE_FILE="$(cygpath -w "$PWD/LICENSE")" \
+            -DOUTFILE="$(cygpath -w "$PWD/dist/CaptureDeskSetup.exe")" \
+            -V2 installer/CaptureDesk.nsi
           test -s dist/CaptureDeskSetup.exe
           ls -la dist
 
