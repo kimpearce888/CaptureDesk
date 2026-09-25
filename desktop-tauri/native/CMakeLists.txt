@@ -72,6 +72,7 @@ if(WIN32)
   target_link_libraries(capturedesk-engine PRIVATE
     windowsapp   # C++/WinRT (Windows.Graphics.Capture)
     d3d11 dxgi   # frame staging
+    dwmapi       # DwmGetWindowAttribute (cloaked-window detection)
     ole32        # WASAPI / COM
     mf mfplat mfreadwrite mfuuid  # Media Foundation camera
     windowscodecs # WIC PNG encode for source thumbnails
