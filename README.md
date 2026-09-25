@@ -3,16 +3,35 @@
 An independent, professional screen-recording product: a Chrome extension and a
 Windows desktop application with an editor — all original branding, all local.
 
+> ## ✨ Branch `v2-native` — same product, native stack
+>
+> You are viewing the **v2 native stack** branch. Every v1 feature is
+> preserved, but the runtime is rebuilt with the best language per component:
+>
+> | Component | v2 stack |
+> |---|---|
+> | Desktop app | **Tauri 2** (Rust shell) + ported webview UI (~10 MB, not Electron) |
+> | Capture & encode | **C++17 engine** — Windows.Graphics.Capture, WASAPI, Media Foundation, FFmpeg |
+> | Native messaging host | **C# / .NET 8** single-file exe (drop-in, same wire protocol) |
+> | Chrome extension | Unchanged (JS — the Chrome-mandated language) |
+>
+> See [docs/SPEC-NATIVE.md](docs/SPEC-NATIVE.md) for the full decision record,
+> the engine protocol and the feature-parity checklist. Build with
+> `scripts/build-engine.sh` → `scripts/build-host.sh` → `scripts/build-tauri.sh`.
+
 ```
-CaptureDesk/
-├── extension/      capturedesk-extension      Chrome extension (Manifest V3)
-├── desktop/        capturedesk-desktop        Electron desktop app (win32)
-│                   └── src/editor-core      capturedesk-editor (trim/annotate/export)
-├── native-host/    capturedesk-native-host    optional native messaging host
-├── installer/      capturedesk-installer      NSIS installer script (CaptureDeskSetup.exe)
-├── scripts/        build pipeline (extension zip, packaging, installer, checksums)
-├── docs/           BRAND.md, SPEC-*.md, BUILDING.md
-└── dist/           release output (see below)
+CaptureDesk/  (branch v2-native)
+├── extension/         capturedesk-extension       Chrome extension (Manifest V3, JS)
+├── desktop-tauri/     capturedesk-desktop         Tauri 2 app
+│   ├── src-tauri/     Rust shell (windows, tray, hotkeys, settings, library)
+│   ├── native/        capturedesk-engine (C++17: WGC/WASAPI/MF + FFmpeg)
+│   └── ui/            ported webview UI + bridge.js (v1-compatible API)
+├── native-host-cs/    capturedesk-native-host     C# native messaging host
+├── native-host/       (v1 Node host — kept for reference)
+├── installer/         capturedesk-installer       NSIS script (CaptureDeskSetup.exe)
+├── scripts/           build pipeline (engine, host, tauri, checksums, release)
+├── docs/              BRAND.md, SPEC-*.md, BUILDING.md, USER-GUIDE.md
+└── dist/              release output (see below)
 ```
 
 ## Release artifacts (`dist/`)

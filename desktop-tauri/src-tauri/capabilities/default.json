@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "CaptureDesk application windows: core APIs plus the dialog plugin.",
+  "windows": ["main", "toolbar", "region", "cambubble", "editor"],
+  "permissions": ["core:default", "dialog:default"]
+}

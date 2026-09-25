@@ -8,7 +8,13 @@ ManifestDPIAware true
 SetCompressor /SOLID lzma
 
 !ifndef APPSRC
-  !define APPSRC "../build/CaptureDesk-win32-x64"
+  !define APPSRC "../desktop-tauri/target/release"
+!endif
+!ifndef ENGINESRC
+  !define ENGINESRC "../desktop-tauri/native/build/Release/capturedesk-engine.exe"
+!endif
+!ifndef HOSTSRC
+  !define HOSTSRC "../native-host-cs/publish/capturedesk-native-host.exe"
 !endif
 !ifndef OUTFILE
   !define OUTFILE "../dist/CaptureDeskSetup.exe"
@@ -16,12 +22,16 @@ SetCompressor /SOLID lzma
 !ifndef ROOTDIR
   !define ROOTDIR ".."
 !endif
+!ifndef CD_EXT_ID
+  ; Chrome extension origin allowed to talk to the native host.
+  !define CD_EXT_ID "REPLACE_WITH_EXTENSION_ID"
+!endif
 
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
 
 !define PRODUCT       "CaptureDesk"
-!define PRODUCTVER    "1.0.0"
+!define PRODUCTVER    "2.0.0"
 !define PUBLISHER     "CaptureDesk Project"
 !define APPID         "com.capturedesk.desktop"
 !define REGKEY        "Software\CaptureDesk"
@@ -33,7 +43,7 @@ OutFile "${OUTFILE}"
 InstallDir "$LOCALAPPDATA\Programs\CaptureDesk"
 InstallDirRegKey HKCU "${REGKEY}" "InstallPath"
 RequestExecutionLevel user
-VIProductVersion "1.0.0.0"
+VIProductVersion "2.0.0.0"
 VIAddVersionKey "ProductName" "${PRODUCT}"
 VIAddVersionKey "FileDescription" "${PRODUCT} Setup"
 VIAddVersionKey "CompanyName" "${PUBLISHER}"
@@ -82,6 +92,24 @@ Section "CaptureDesk Desktop" SecMain
   Sleep 400
 
   File /r "${APPSRC}\*.*"
+
+  ; CaptureDesk native engine (C++ sidecar used for capture + export)
+  SetOutPath "$INSTDIR\engine"
+  File "${ENGINESRC}"
+
+  ; Native messaging host (C#) for the CaptureDesk Chrome extension
+  SetOutPath "$INSTDIR\NativeHost"
+  File "${HOSTSRC}"
+  FileOpen $0 "$INSTDIR\NativeHost\com.capturedesk.host.json" w
+  FileWrite $0 '{"name":"com.capturedesk.host","description":"CaptureDesk native messaging host","path":"$INSTDIR\\NativeHost\\capturedesk-native-host.exe","type":"stdio","allowed_origins":["chrome-extension://${CD_EXT_ID}/"]}'
+  FileClose $0
+  WriteRegStr HKCU "Software\Google\Chrome\NativeMessagingHosts\com.capturedesk.host" "" "$INSTDIR\NativeHost\com.capturedesk.host.json"
+  WriteRegStr HKCU "Software\Chromium\NativeMessagingHosts\com.capturedesk.host" "" "$INSTDIR\NativeHost\com.capturedesk.host.json"
+
+  ; capturedesk:// deep-link scheme (editor launches from the extension)
+  WriteRegStr HKCU "Software\Classes\capturedesk" "" "URL:CaptureDesk"
+  WriteRegStr HKCU "Software\Classes\capturedesk" "URL Protocol" ""
+  WriteRegStr HKCU "Software\Classes\capturedesk\shell\open\command" "" '"$INSTDIR\CaptureDesk.exe" "%1"'
 
   ; Start Menu shortcuts
   CreateDirectory "$SMPROGRAMS\CaptureDesk"
@@ -135,6 +163,9 @@ Section "Uninstall"
   RMDir "$SMPROGRAMS\CaptureDesk"
   Delete "$DESKTOP\CaptureDesk.lnk"
 
+  DeleteRegKey HKCU "Software\Google\Chrome\NativeMessagingHosts\com.capturedesk.host"
+  DeleteRegKey HKCU "Software\Chromium\NativeMessagingHosts\com.capturedesk.host"
+  DeleteRegKey HKCU "Software\Classes\capturedesk"
   DeleteRegKey HKCU "${UNINSTKEY}"
   DeleteRegKey HKCU "${REGKEY}"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "CaptureDesk"

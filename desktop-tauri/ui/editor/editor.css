@@ -1,0 +1,126 @@
+/* CaptureDesk Editor layout. */
+
+.app { display: flex; flex-direction: column; height: 100vh; }
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; border-bottom: 1px solid var(--slate-800);
+}
+.top-right { display: flex; align-items: center; gap: 10px; }
+.filename { width: 300px; font-size: 13px; }
+
+.main { display: flex; flex: 1; min-height: 0; }
+.left { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 16px; gap: 12px; }
+.right {
+  width: 300px; flex: none;
+  border-left: 1px solid var(--slate-800);
+  padding: 18px;
+  display: flex; flex-direction: column; gap: 12px;
+  overflow-y: auto;
+}
+.right h3 { font-size: 15px; }
+
+/* Stage */
+.stage {
+  position: relative; flex: 1; min-height: 0;
+  background: #000;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.stage video { max-width: 100%; max-height: 100%; outline: none; }
+.stage canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  touch-action: none;
+}
+.stage.draw canvas { cursor: crosshair; }
+
+/* Transport */
+.transport { display: flex; align-items: center; gap: 10px; }
+.time { color: var(--slate-300); font-size: 13px; }
+.tbtn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--slate-800); border: 1px solid var(--slate-700);
+  transition: background .15s var(--ease);
+}
+.tbtn:hover { background: var(--slate-700); }
+
+/* Timeline */
+.timeline { display: flex; flex-direction: column; gap: 6px; }
+.track {
+  position: relative; height: 34px;
+  background: var(--slate-800);
+  border: 1px solid var(--slate-700);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  cursor: pointer;
+}
+.sel {
+  position: absolute; top: 0; bottom: 0;
+  background: rgba(20, 184, 166, 0.22);
+  border-left: 1px solid rgba(94, 234, 212, 0.5);
+  border-right: 1px solid rgba(94, 234, 212, 0.5);
+}
+.cut { position: absolute; top: 0; bottom: 0; background: rgba(2, 12, 27, 0.65); }
+.handle {
+  position: absolute; top: 0; bottom: 0;
+  width: 10px;
+  background: var(--brand-500);
+  cursor: ew-resize;
+  border-radius: 2px;
+}
+.playhead {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: #fff; opacity: .85;
+}
+.trim-labels { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--slate-400); }
+
+/* Annotation bar */
+.annot-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ab-title { font-weight: 650; font-size: 13px; margin-right: 2px; }
+.tool-group { display: flex; gap: 4px; }
+.tool {
+  width: 30px; height: 30px;
+  border-radius: var(--r-sm);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--slate-800); border: 1px solid var(--slate-700);
+  color: var(--slate-300);
+}
+.tool:hover { background: var(--slate-700); }
+.tool.active { border-color: var(--brand-500); color: var(--brand-300); }
+.ab-hint { font-size: 11.5px; color: var(--slate-500); margin-left: auto; }
+
+/* Export panel */
+.trim-summary { font-size: 12.5px; color: var(--slate-400); }
+.fmt-list { display: flex; flex-direction: column; gap: 8px; }
+.fmt {
+  text-align: left;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--slate-700);
+  background: var(--slate-800);
+  color: var(--slate-100);
+}
+.fmt:hover { border-color: var(--slate-500); }
+.fmt.selected { border-color: var(--brand-500); box-shadow: 0 0 0 2px rgba(20, 184, 166, .25); }
+.fmt span { font-size: 11.5px; color: var(--slate-400); }
+.burn { padding: 6px 0; }
+.burn[disabled] { opacity: .5; }
+
+.progress {
+  height: 6px; border-radius: 999px;
+  background: var(--slate-800);
+  overflow: hidden;
+  display: none;
+}
+.progress.on { display: block; }
+.progress-bar {
+  height: 100%; width: 0%;
+  background: var(--grad);
+  transition: width .2s var(--ease);
+}
+.progress-msg { font-size: 12px; color: var(--slate-400); min-height: 16px; }
+.sep { border: 0; border-top: 1px solid var(--slate-800); margin: 6px 0; }

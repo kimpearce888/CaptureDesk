@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CaptureDesk</title>
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <style>
+    html, body { background: transparent; overflow: hidden; }
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 100%;
+      padding: 0 14px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid var(--slate-700);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+    .drag { -webkit-app-region: drag; }
+    .timer {
+      font-variant-numeric: tabular-nums;
+      font-weight: 650;
+      font-size: 15px;
+      min-width: 62px;
+      text-align: center;
+    }
+    .state-text { font-size: 12px; color: var(--slate-400); min-width: 118px; }
+    .tbtn {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--slate-800);
+      border: 1px solid var(--slate-700);
+      transition: background .15s var(--ease), border-color .15s var(--ease);
+      -webkit-app-region: no-drag;
+    }
+    .tbtn:hover { background: var(--slate-700); }
+    .tbtn.stop { background: var(--grad); border-color: transparent; }
+    .tbtn.stop:hover { filter: brightness(1.1); }
+    .tbtn svg { width: 14px; height: 14px; fill: currentColor; }
+    .tbtn.active { border-color: var(--brand-500); }
+    .count-badge {
+      position: absolute;
+      top: -14px; right: 12px;
+      background: var(--grad);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 12px;
+      border-radius: 999px;
+      box-shadow: var(--shadow);
+      display: none;
+    }
+    .wrap { position: relative; height: 100vh; padding: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="count-badge" id="countBadge"></div>
+    <div class="bar">
+      <div class="drag" style="flex:1; display:flex; align-items:center; gap:10px;">
+        <span class="rec-dot" id="dot"></span>
+        <span class="timer mono" id="timer">00:00</span>
+        <span class="state-text" id="stateText">Recording…</span>
+      </div>
+      <button class="tbtn" id="camBtn" title="Toggle camera bubble">
+        <svg viewBox="0 0 24 24"><path d="M15 8v8H5a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2h10zm2 2.5 4-2.5v8l-4-2.5v-3z"/></svg>
+      </button>
+      <button class="tbtn" id="pauseBtn" title="Pause recording">
+        <svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+      </button>
+      <button class="tbtn stop" id="stopBtn" title="Stop and save">
+        <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+      </button>
+    </div>
+  </div>
+  <script src="../bridge.js"></script>
+  <script src="toolbar.js"></script>
+</body>
+</html>
