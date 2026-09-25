@@ -22,6 +22,18 @@ SetCompressor /SOLID lzma
 !ifndef ROOTDIR
   !define ROOTDIR ".."
 !endif
+; Asset paths: makensis resolves File globs and Icon loads against different
+; bases depending on platform. Defaults keep the classic ROOTDIR-relative
+; layout; CI overrides them with script-local relative paths (see release.yml).
+!ifndef ICONDIR
+  !define ICONDIR "${ROOTDIR}/desktop/assets/icons"
+!endif
+!ifndef BITMAPDIR
+  !define BITMAPDIR "${ROOTDIR}/installer/assets"
+!endif
+!ifndef LICENSEFILE
+  !define LICENSEFILE "${ROOTDIR}/LICENSE"
+!endif
 !ifndef CD_EXT_ID
   ; Chrome extension origin allowed to talk to the native host.
   !define CD_EXT_ID "REPLACE_WITH_EXTENSION_ID"
@@ -51,18 +63,18 @@ VIAddVersionKey "LegalCopyright" "MIT License - CaptureDesk Project"
 VIAddVersionKey "FileVersion" "${PRODUCTVER}"
 VIAddVersionKey "ProductVersion" "${PRODUCTVER}"
 
-!define MUI_ICON "${ROOTDIR}/desktop/assets/icons/CaptureDesk.ico"
-!define MUI_UNICON "${ROOTDIR}/desktop/assets/icons/CaptureDesk.ico"
-!define MUI_WELCOMEFINISHPAGE_BITMAP "${ROOTDIR}/installer/assets/sidebar.bmp"
+!define MUI_ICON "${ICONDIR}/CaptureDesk.ico"
+!define MUI_UNICON "${ICONDIR}/CaptureDesk.ico"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "${BITMAPDIR}/sidebar.bmp"
 !define MUI_HEADERIMAGE
-!define MUI_HEADERIMAGE_BITMAP "${ROOTDIR}/installer/assets/header.bmp"
+!define MUI_HEADERIMAGE_BITMAP "${BITMAPDIR}/header.bmp"
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\CaptureDesk.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "Launch CaptureDesk"
 
 ; Installer pages
 !insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_LICENSE "${ROOTDIR}/LICENSE"
+!insertmacro MUI_PAGE_LICENSE "${LICENSEFILE}"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
