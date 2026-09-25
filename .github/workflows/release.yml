@@ -102,7 +102,10 @@ jobs:
         run: |
           mkdir -p build/stage
           BIN=""
-          for c in desktop-tauri/target/release/CaptureDesk.exe \
+          # cargo target dir lives inside src-tauri (and may be overridden):
+          for c in desktop-tauri/src-tauri/target/release/CaptureDesk.exe \
+                   desktop-tauri/target/release/CaptureDesk.exe \
+                   desktop-tauri/src-tauri/target/release/capturedesk-desktop.exe \
                    desktop-tauri/target/release/capturedesk-desktop.exe; do
             if [ -f "$c" ]; then BIN="$c"; break; fi
           done
