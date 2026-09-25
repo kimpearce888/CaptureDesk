@@ -7,6 +7,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 
+# dist/ is no longer tracked in git (Release assets are the published
+# binaries), so it must exist before the copy below.
+mkdir -p "$DIST"
 rm -rf "$DIST/capturedesk-chrome-extension" "$DIST/CaptureDesk-Chrome-Extension.zip"
 cp -r "$ROOT/extension" "$DIST/capturedesk-chrome-extension"
 
