@@ -1,43 +1,79 @@
 # Building CaptureDesk
 
-Everything builds from this repository on a Linux CI host (Windows
-cross-packaging requires no wine and no code-signing certificate).
+CaptureDesk has two stacks in this repository:
+
+| Stack | Location | Status |
+|---|---|---|
+| **v2 native** (Tauri 2 + C++ engine + C# host) | `desktop-tauri/`, `native-host-cs/` | Current (`main`) — released as `v2.0.0-alpha.1`+ |
+| v1 Electron | `desktop/` | Superseded, kept for reference — released as `v1.0.0` |
 
 ## Prerequisites
 
-- Node.js 18+ (tested on Node 24)
-- npm 11+
-- `zip`, `curl`, `dpkg-deb` (for the NSIS toolchain fetch)
+**v2 native stack:**
+
+- Rust 1.77+ (`rustup`) and Tauri 2 prerequisites
+  (<https://tauri.app/start/prerequisites/>)
+- Node.js 18+ (used for the Tauri CLI and the extension bundle)
+- .NET 8 SDK (C# native messaging host)
+- C++ toolchain: MSVC + [vcpkg] with `nlohmann-json ffmpeg[x264,vpx,opus]`
+  (`x64-windows` triplet) — or on Linux: `nlohmann-json3-dev libavformat-dev
+  libavcodec-dev libavutil-dev libswscale-dev libswresample-dev pkg-config
+  cmake g++` (transcode/export only; screen capture is Windows-only)
+- CMake 3.21+
+- NSIS 3.x for the installer (Windows `choco install nsis`, or
+  `scripts/fetch-nsis.sh` on Linux — no root needed)
+
+**v1 Electron suite (legacy):**
+
+- Node.js 18+, npm 11+, `zip`, `curl`, `dpkg-deb`
 - Python 3 + Pillow (only to regenerate brand assets: `scripts/gen-icons.py`)
 
-## One-shot release
-
-```bash
-bash scripts/release.sh
-```
-
-Produces:
-
-```
-dist/
-    CaptureDeskSetup.exe
-    CaptureDesk-Chrome-Extension.zip
-    capturedesk-chrome-extension/
-    checksums.txt
-```
-
-## Step by step
+## v2 native stack — step by step
 
 | Script | What it does |
 |--------|--------------|
-| `scripts/fetch-nsis.sh` | Downloads + extracts a Linux NSIS 3.11 (makensis) into `tools/` — no root needed |
-| `scripts/build-extension.sh` | Copies the extension into `dist/capturedesk-chrome-extension/` and zips it |
-| `scripts/build-desktop.sh` | Cross-packages CaptureDesk Desktop for win32-x64 with `@electron/packager` (pure-JS resedit embeds the icon and version info) into `build/CaptureDesk-win32-x64/` |
-| `scripts/build-installer.sh` | Compiles `dist/CaptureDeskSetup.exe` from the packaged build with makensis |
-| `scripts/checksums.sh` | Writes `dist/checksums.txt` (SHA-256) |
-| `scripts/gen-icons.py` | Regenerates the original brand assets (icons, .ico, installer bitmaps) |
+| `scripts/build-engine.sh` | Configures + builds the C++ engine (`capturedesk-engine`) with CMake. Windows (MSVC/vcpkg) = full capture path; Linux = transcode/export path |
+| `scripts/build-host.sh [rid]` | Publishes the C# native host as a self-contained single-file exe (default `win-x64`) into `native-host-cs/publish/` |
+| `scripts/build-tauri.sh <engine-path> [tauri args…]` | Stages the engine sidecar into `src-tauri/engine/` and runs `cargo tauri build` |
+| `scripts/build-installer.sh` | Compiles `dist/CaptureDeskSetup.exe` from the three v2 build outputs (app + engine + host) — preflights all of them |
+| `scripts/build-extension.sh` | Copies `extension/` into `dist/capturedesk-chrome-extension/` and zips it |
+| `scripts/release-v2.sh` | Orchestrates everything above into `dist/` + `checksums.txt` (mirrors the CI pipeline) |
 
-## Desktop development
+Typical full build on Windows:
+
+```bash
+export VCPKG_TOOLCHAIN=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake
+bash scripts/release-v2.sh jvdmuatifqhjaigc   # stable extension ID
+```
+
+Typical development loop (Linux, export/engine work):
+
+```bash
+bash scripts/build-engine.sh
+cmake -S desktop-tauri/native -B desktop-tauri/native/build \
+  -DCMAKE_BUILD_TYPE=Release -DCAPTUREDESK_BUILD_TESTS=ON
+cmake --build desktop-tauri/native/build --parallel
+./desktop-tauri/native/build/capturedesk-encode-test /tmp/test.webm
+```
+
+## Release pipeline (canonical)
+
+Push a `v2*` tag — `.github/workflows/release.yml` does the rest on a Windows
+runner: vcpkg-cached engine build, C# host publish + protocol smoke, Tauri
+shell (`--no-bundle`), NSIS installer, extension zip, SHA-256 checksums, and a
+GitHub Release with all assets attached. CI (`.github/workflows/ci.yml`)
+exercises every component on every push.
+
+## v1 Electron suite (legacy)
+
+| Script | What it does |
+|--------|--------------|
+| `scripts/build-extension.sh` | Extension bundle (shared with v2) |
+| `scripts/build-desktop.sh` | Cross-packages CaptureDesk Desktop for win32-x64 with `@electron/packager` into `build/CaptureDesk-win32-x64/` |
+| `scripts/checksums.sh` | Writes `dist/checksums.txt` (SHA-256) |
+| `scripts/release.sh` | Orchestrates the v1 suite (extension + desktop + checksums) |
+
+Desktop development:
 
 ```bash
 cd desktop
@@ -55,18 +91,23 @@ electron . --recorder-smoke  # opens the hidden compositor window
 ## Extension development
 
 Load `extension/` (or `dist/capturedesk-chrome-extension/`) via
-`chrome://extensions` → *Load unpacked*.
+`chrome://extensions` → *Load unpacked*. The extension ID is pinned by the
+`key` field in `manifest.json` (`jvdmuatifqhjaigc`); the native host manifest
+generated by the installer allows exactly that origin.
 
 ## Notes on the Windows package
 
-- `@ffmpeg/ffmpeg` + `@ffmpeg/core` are bundled so exports work fully offline.
-- `uiohook-napi` ships prebuilds for `win32-x64` inside the npm tarball, so
-  native click hooks work in the cross-packaged build.
-- The app is packaged **without asar** on purpose: the editor's export engine
-  loads its WebAssembly core from `resources/app/node_modules` via `file://`
-  URLs, which must be real files.
+- The v2 app ships the C++ engine as a bundle resource (`resources/engine/`)
+  and the C# native host under `NativeHost\`; both are registered per-user by
+  the NSIS installer (native messaging manifest + `capturedesk://` handler).
+- v1 bundles `@ffmpeg/ffmpeg` + `@ffmpeg/core` so exports work fully offline,
+  and is packaged **without asar** on purpose: the editor loads its WebAssembly
+  core from `resources/app/node_modules` via `file://` URLs, which must be real
+  files.
 
 ## Versioning
 
-Bump `version` in `extension/manifest.json` and `desktop/package.json`, and
-`PRODUCTVER` in `installer/CaptureDesk.nsi`, then re-run `scripts/release.sh`.
+Bump `version` in `extension/manifest.json`, `desktop/package.json` (v1),
+`desktop-tauri/src-tauri/tauri.conf.json` + `Cargo.toml` (v2), and
+`PRODUCTVER` in `installer/CaptureDesk.nsi`, then tag `vX.Y.Z` to let CI
+produce the release.

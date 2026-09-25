@@ -54,6 +54,16 @@ internal static class Program
             {
                 Send(stdout, new { type = "error", error = ex.Message });
             }
+            catch (Exception ex)
+            {
+                // A bad chunk (e.g. malformed base64) or I/O hiccup must not
+                // kill the host — report and keep the messaging loop alive.
+                try
+                {
+                    Send(stdout, new { type = "error", error = ex.Message });
+                }
+                catch { /* stdout is gone; nothing more we can do */ }
+            }
         }
 
         // stdin closed: finalize any in-flight transfer so partial data

@@ -177,6 +177,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # workflow_dispatch re-publishes an existing tag: build from THAT
+          # tag, not from the default branch head.
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -199,9 +203,13 @@ jobs:
           cat checksums.txt
 
       - name: Release notes
+        env:
+          TAG_NAME: ${{ inputs.tag || github.ref_name }}
         run: |
+          # Quoted heredoc: literal backticks in Markdown stay literal.
+          # The version placeholder is substituted afterwards (dynamic tag).
           cat > RELEASE_NOTES.md <<'EOF'
-          # CaptureDesk v2.0.0-alpha.1 — native stack
+          # CaptureDesk __CD_TAG__ — native stack
 
           The same CaptureDesk suite rebuilt on a native foundation (branch `v2-native`):
 
@@ -227,9 +235,11 @@ jobs:
 
           ## Alpha notes
           - Windows 10/11 x64 only; WebView2 runtime required (preinstalled on updated systems).
-          - This is an alpha: please report issues with logs from `%APPDATA%\CaptureDesk`.
+          - This is an alpha: please report issues with logs from `%APPDATA%\app.capturedesk.desktop`.
           - Recordings and exports are always written locally. Nothing leaves the device.
           EOF
+          sed -i "s/__CD_TAG__/${TAG_NAME}/g" RELEASE_NOTES.md
+          head -1 RELEASE_NOTES.md
 
       - name: Create GitHub Release and upload assets
         env:

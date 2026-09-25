@@ -187,6 +187,9 @@ Section "Uninstall"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "CaptureDesk"
 
   MessageBox MB_YESNO|MB_ICONQUESTION "Do you also want to remove CaptureDesk settings?$\nYour recordings in Videos\CaptureDesk are always kept." IDNO SkipData
+    ; Tauri stores app data (settings, export scratch) under the identifier:
+    RMDir /r "$APPDATA\app.capturedesk.desktop"
+    ; Legacy/extra data folder (v1 imports, stray files):
     RMDir /r "$APPDATA\CaptureDesk"
   SkipData:
 SectionEnd

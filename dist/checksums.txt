@@ -1,2 +1,0 @@
-222e7fab11a0caeaac4250641b42ea5bc73aaa44bc33f4e8b4a9854c0a48fcdd  CaptureDeskSetup.exe
-1c17c08a72647979ac5657d19c3f914ff14e531f509a9fae363efdeef0a305c8  CaptureDesk-Chrome-Extension.zip

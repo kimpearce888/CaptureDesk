@@ -172,14 +172,22 @@ pub fn request(app: &AppHandle, cmd: &str, params: Value, timeout_ms: u64) -> Re
     let id = st.next_id.fetch_add(1, Ordering::SeqCst);
     let (tx, rx): (Sender<Value>, Receiver<Value>) = channel();
     st.pending.lock().unwrap().insert(id, tx);
-    {
+    let write = {
         let mut guard = st.stdin.lock().unwrap();
-        let stdin = guard
-            .as_mut()
-            .ok_or_else(|| "CaptureDesk engine is not running".to_string())?;
-        let line = json!({ "id": id, "cmd": cmd, "params": params });
-        writeln!(stdin, "{line}").map_err(|e| format!("engine write: {e}"))?;
-        stdin.flush().map_err(|e| format!("engine flush: {e}"))?;
+        match guard.as_mut() {
+            Some(stdin) => {
+                let line = json!({ "id": id, "cmd": cmd, "params": params });
+                writeln!(stdin, "{line}")
+                    .and_then(|_| stdin.flush())
+                    .map_err(|e| format!("engine write: {e}"))
+            }
+            None => Err("CaptureDesk engine is not running".to_string()),
+        }
+    };
+    if let Err(e) = write {
+        // Don't leak the pending slot when the request never reached the engine.
+        st.pending.lock().unwrap().remove(&id);
+        return Err(e);
     }
     match rx.recv_timeout(Duration::from_millis(timeout_ms)) {
         Ok(v) => Ok(v),

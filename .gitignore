@@ -2,9 +2,10 @@
 node_modules/
 build/
 tools/
-# CaptureDeskSetup.exe (~117 MB) exceeds GitHub's 100 MB git file limit —
-# it is published as a GitHub Releases asset instead of being tracked here.
-dist/CaptureDeskSetup.exe
+# dist/ holds release build output (setup exe, extension zip, checksums).
+# It is produced by scripts and CI on demand — never commit build output:
+# the GitHub Release assets are the single source of published binaries.
+dist/
 *.log
 npm-debug.log*
 .DS_Store

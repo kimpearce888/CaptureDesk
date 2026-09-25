@@ -3,51 +3,55 @@
 An independent, professional screen-recording product: a Chrome extension and a
 Windows desktop application with an editor — all original branding, all local.
 
-> ## ✨ Branch `v2-native` — same product, native stack
+> ## ✨ Native stack (v2) — now on `main`
 >
-> You are viewing the **v2 native stack** branch. Every v1 feature is
-> preserved, but the runtime is rebuilt with the best language per component:
+> `main` carries the **v2 native stack** (merged from `v2-native`). Every v1
+> feature is preserved, but the runtime is rebuilt with the best language per
+> component:
 >
 > | Component | v2 stack |
 > |---|---|
 > | Desktop app | **Tauri 2** (Rust shell) + ported webview UI (~10 MB, not Electron) |
-> | Capture & encode | **C++17 engine** — Windows.Graphics.Capture, WASAPI, Media Foundation, FFmpeg |
+> | Capture & encode | **C++20 engine** — Windows.Graphics.Capture, WASAPI, Media Foundation, FFmpeg |
 > | Native messaging host | **C# / .NET 8** single-file exe (drop-in, same wire protocol) |
 > | Chrome extension | Unchanged (JS — the Chrome-mandated language) |
 >
 > See [docs/SPEC-NATIVE.md](docs/SPEC-NATIVE.md) for the full decision record,
 > the engine protocol and the feature-parity checklist. Build with
-> `scripts/build-engine.sh` → `scripts/build-host.sh` → `scripts/build-tauri.sh`.
+> `scripts/build-engine.sh` → `scripts/build-host.sh` → `scripts/build-tauri.sh`,
+> or run everything at once with `scripts/release-v2.sh`.
 
 ```
-CaptureDesk/  (branch v2-native)
+CaptureDesk/  (main — v2 native stack)
 ├── extension/         capturedesk-extension       Chrome extension (Manifest V3, JS)
 ├── desktop-tauri/     capturedesk-desktop         Tauri 2 app
 │   ├── src-tauri/     Rust shell (windows, tray, hotkeys, settings, library)
-│   ├── native/        capturedesk-engine (C++17: WGC/WASAPI/MF + FFmpeg)
+│   ├── native/        capturedesk-engine (C++20: WGC/WASAPI/MF + FFmpeg)
 │   └── ui/            ported webview UI + bridge.js (v1-compatible API)
 ├── native-host-cs/    capturedesk-native-host     C# native messaging host
-├── native-host/       (v1 Node host — kept for reference)
+├── desktop/           v1 Electron app (superseded, kept for reference)
+├── native-host/       v1 Node host (kept for reference)
 ├── installer/         capturedesk-installer       NSIS script (CaptureDeskSetup.exe)
-├── scripts/           build pipeline (engine, host, tauri, checksums, release)
-├── docs/              BRAND.md, SPEC-*.md, BUILDING.md, USER-GUIDE.md
-└── dist/              release output (see below)
+├── scripts/           build pipeline (engine, host, tauri, installer, release)
+└── docs/              BRAND.md, SPEC-*.md, BUILDING.md, USER-GUIDE.md
 ```
 
-## Release artifacts (`dist/`)
+## Releases
 
-| File | Description |
+Binaries are **never tracked in git** — `dist/` is local build output only.
+Published assets live on the [GitHub Releases](../../releases) page and are
+produced automatically by the tag-triggered pipeline
+(`.github/workflows/release.yml`: push a `v2*` tag → Windows runner builds the
+engine, host, Tauri shell and NSIS installer → assets + SHA-256 checksums are
+attached).
+
+| Asset | Description |
 |------|-------------|
-| `CaptureDeskSetup.exe` | Per-user Windows installer for CaptureDesk Desktop |
+| `CaptureDeskSetup.exe` | Per-user Windows installer (v2: app + engine + native host) |
 | `CaptureDesk-Chrome-Extension.zip` | Load-ready CaptureDesk extension bundle |
-| `capturedesk-chrome-extension/` | Unpacked copy of the same extension |
 | `checksums.txt` | SHA-256 sums of the above |
 
-> **Note:** `CaptureDeskSetup.exe` (~117 MB) is larger than GitHub's 100 MB git
-> file limit, so it is published as a binary asset on the
-> [GitHub Releases](../../releases) page (tag `v1.0.0`) rather than tracked in
-> git. You can always rebuild it from source with `scripts/release.sh` — see
-> [docs/BUILDING.md](docs/BUILDING.md).
+You can also rebuild everything locally — see [docs/BUILDING.md](docs/BUILDING.md).
 
 ## What it does
 

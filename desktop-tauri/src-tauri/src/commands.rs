@@ -189,7 +189,13 @@ pub fn settings_get(app: AppHandle) -> Value {
 
 #[tauri::command]
 pub fn settings_set(app: AppHandle, patch: Value) -> Value {
+    let before = crate::settings::flag(&app, "hotkeysEnabled", true);
     let merged = crate::settings::save(&app, patch);
+    let after = crate::settings::flag(&app, "hotkeysEnabled", true);
+    if before != after {
+        // Apply the hotkey switch immediately instead of at next launch.
+        crate::shortcuts::apply_enabled(&app, after);
+    }
     json!({ "ok": true, "settings": merged })
 }
 

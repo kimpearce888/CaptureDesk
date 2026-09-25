@@ -7,12 +7,20 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
 pub fn register(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    if !crate::settings::flag(app, "hotkeysEnabled", true) {
-        return Ok(());
-    }
+    apply_enabled(app, crate::settings::flag(app, "hotkeysEnabled", true))
+}
+
+/// (Un)register the global hotkeys according to the `hotkeysEnabled` setting.
+/// Called at startup and whenever the setting flips at runtime.
+pub fn apply_enabled(app: &AppHandle, enabled: bool) -> Result<(), Box<dyn std::error::Error>> {
     let gs = app.global_shortcut();
-    gs.register("ctrl+alt+r")?;
-    gs.register("ctrl+alt+p")?;
+    if enabled {
+        gs.register("ctrl+alt+r")?;
+        gs.register("ctrl+alt+p")?;
+    } else {
+        gs.unregister("ctrl+alt+r").ok();
+        gs.unregister("ctrl+alt+p").ok();
+    }
     Ok(())
 }
 

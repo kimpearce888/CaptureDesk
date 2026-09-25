@@ -71,6 +71,12 @@ jobs:
         run: |
           vcpkg install nlohmann-json ffmpeg[x264,vpx,opus] --triplet x64-windows
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+        # Binary-cache vcpkg builds (same source as release.yml): restores
+        # ffmpeg/x264 from the Actions cache instead of re-downloading
+        # upstream tarballs (code.videolan.org has flaked before).
+        env:
+          VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Configure (Linux)
         if: runner.os == 'Linux'
         run: cmake -S desktop-tauri/native -B desktop-tauri/native/build -DCMAKE_BUILD_TYPE=Release -DCAPTUREDESK_BUILD_TESTS=ON

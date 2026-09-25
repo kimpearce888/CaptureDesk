@@ -8,12 +8,18 @@ set -euo pipefail
 cd "$(dirname "$0")/../desktop-tauri"
 
 # Stage the engine sidecar as a bundle resource.
-ENGINE_BIN="$1" # path to capturedesk-engine(.exe)
-if [[ -z "${1:-}" || ! -f "$ENGINE_BIN" ]]; then
-  echo "usage: build-tauri.sh <path-to-capturedesk-engine>" >&2
+if [ $# -lt 1 ]; then
+  echo "usage: build-tauri.sh <path-to-capturedesk-engine> [extra tauri args…]" >&2
+  exit 1
+fi
+ENGINE_BIN="$1"
+if [ ! -f "$ENGINE_BIN" ]; then
+  echo "usage: build-tauri.sh <path-to-capturedesk-engine> [extra tauri args…]" >&2
+  echo "engine binary not found: $ENGINE_BIN" >&2
   exit 1
 fi
 mkdir -p src-tauri/engine
 cp "$ENGINE_BIN" src-tauri/engine/
+shift # consumed the engine path — remaining args go to tauri
 
 cargo tauri build "$@"
