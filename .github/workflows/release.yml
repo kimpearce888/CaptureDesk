@@ -50,8 +50,19 @@ jobs:
       - name: Locate engine executable
         shell: bash
         run: |
-          test -f desktop-tauri/native/build/capturedesk-engine.exe
-          echo "ENGINE exe OK: $(du -h desktop-tauri/native/build/capturedesk-engine.exe | cut -f1)"
+          # vcpkg toolchain may select a multi-config generator (VS) or Ninja:
+          # cover both output layouts.
+          for p in desktop-tauri/native/build/Release/capturedesk-engine.exe \
+                   desktop-tauri/native/build/capturedesk-engine.exe; do
+            if [ -f "$p" ]; then
+              echo "ENGINE_PATH=$p" >> "$GITHUB_ENV"
+              echo "engine exe OK: $p ($(du -h "$p" | cut -f1))"
+              exit 0
+            fi
+          done
+          echo "engine executable not found" >&2
+          find desktop-tauri/native/build -name '*.exe' 2>/dev/null || true
+          exit 1
 
       # ---- C# native messaging host ---------------------------------------
       - name: Publish native host (single-file, self-contained)
@@ -74,7 +85,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p desktop-tauri/src-tauri/engine
-          cp desktop-tauri/native/build/capturedesk-engine.exe desktop-tauri/src-tauri/engine/
+          cp "$ENGINE_PATH" desktop-tauri/src-tauri/engine/
 
       - name: Build Tauri shell (release, no bundler)
         shell: bash
@@ -122,7 +133,7 @@ jobs:
           mkdir -p dist
           "$MAKEN" \
             -DAPPSRC="$PWD/build/stage" \
-            -DENGINESRC="$PWD/desktop-tauri/native/build/capturedesk-engine.exe" \
+            -DENGINESRC="$PWD/$ENGINE_PATH" \
             -DHOSTSRC="$PWD/native-host-cs/publish/capturedesk-native-host.exe" \
             -DCD_EXT_ID="$EXT_ID" \
             -DROOTDIR="$PWD" \
