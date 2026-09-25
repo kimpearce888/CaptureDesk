@@ -64,6 +64,7 @@ pub fn run() {
             commands::library_dir,
             commands::library_pick_dir,
             commands::editor_open,
+            commands::editor_take_pending,
             commands::fs_app_path,
             commands::fs_tmp_dir,
             commands::fs_recordings_dir,

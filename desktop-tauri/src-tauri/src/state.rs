@@ -2,6 +2,7 @@
 //! protocol registration.
 
 use serde_json::{json, Value};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -42,6 +43,11 @@ pub struct AppState {
     pub session: Mutex<Session>,
     /// Last drag-selected region: {displayId, rect:{x,y,width,height}}.
     pub pending_region: Mutex<Option<Value>>,
+    /// File queued for the CaptureDesk Editor while its window is still
+    /// loading (closes the editor:load race on first open / deep links).
+    pub pending_editor_file: Mutex<Option<String>>,
+    /// Recordings dir already granted to the runtime asset-protocol scope.
+    pub asset_scope_dir: Mutex<Option<PathBuf>>,
 }
 
 impl AppState {
@@ -49,6 +55,8 @@ impl AppState {
         Self {
             session: Mutex::new(Session::default()),
             pending_region: Mutex::new(None),
+            pending_editor_file: Mutex::new(None),
+            asset_scope_dir: Mutex::new(None),
         }
     }
 

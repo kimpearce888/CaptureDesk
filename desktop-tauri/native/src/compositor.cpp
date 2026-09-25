@@ -18,18 +18,17 @@ namespace {
 inline void blend_pixel(uint8_t* px, const uint8_t color[4]) {
     const uint8_t a = color[3];
     if (a == 255) {
-        px[0] = color[2];
+        // Frame buffer and color are both RGBA8888 (R,G,B,A in memory).
+        px[0] = color[0];
         px[1] = color[1];
-        px[2] = color[0];
+        px[2] = color[2];
         px[3] = 255;
         return;
     }
     if (a == 0) return;
-    // Input color is R,G,B,A; frame buffer is RGBA8888 (little-endian layout
-    // is R,G,B,A in memory for our pipeline).
-    px[0] = static_cast<uint8_t>((color[2] * a + px[0] * (255 - a)) / 255);
+    px[0] = static_cast<uint8_t>((color[0] * a + px[0] * (255 - a)) / 255);
     px[1] = static_cast<uint8_t>((color[1] * a + px[1] * (255 - a)) / 255);
-    px[2] = static_cast<uint8_t>((color[0] * a + px[2] * (255 - a)) / 255);
+    px[2] = static_cast<uint8_t>((color[2] * a + px[2] * (255 - a)) / 255);
     px[3] = 255;
 }
 

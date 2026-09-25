@@ -211,14 +211,14 @@ jobs:
           cat > RELEASE_NOTES.md <<'EOF'
           # CaptureDesk __CD_TAG__ — native stack
 
-          The same CaptureDesk suite rebuilt on a native foundation (branch `v2-native`):
+          The CaptureDesk suite on its native foundation (`main`):
 
           | Component | Stack |
           |---|---|
           | Desktop app | Tauri 2 (Rust shell) + webview UI |
           | Capture & encode | C++ engine — Windows.Graphics.Capture, WASAPI, Media Foundation, FFmpeg (WebM VP9/VP8, MP4 H.264, GIF) |
           | Native messaging host | C# / .NET 8 single-file executable (self-contained) |
-          | Chrome extension | Manifest V3 (unchanged, version 2.0.0 with a stable extension ID) |
+          | Chrome extension | Manifest V3 (JS — the Chrome-mandated language), stable extension ID |
 
           ## Install
           1. Run `CaptureDeskSetup.exe` (per-user install; registers the native messaging
@@ -233,10 +233,13 @@ jobs:
           - Engine encode pipelines (WebM/MP4/GIF) and host protocol ping are exercised
             in CI on every push.
 
-          ## Alpha notes
-          - Windows 10/11 x64 only; WebView2 runtime required (preinstalled on updated systems).
-          - This is an alpha: please report issues with logs from `%APPDATA%\app.capturedesk.desktop`.
+          ## Notes
+          - Windows 10/11 x64; WebView2 runtime required (preinstalled on updated systems).
           - Recordings and exports are always written locally. Nothing leaves the device.
+          - The camera bubble needs webcam permission; if the camera is busy elsewhere
+            the bubble shows a graceful "camera unavailable" state.
+          - Region capture covers the primary display; full-screen/window capture covers
+            every display.
           EOF
           sed -i "s/__CD_TAG__/${TAG_NAME}/g" RELEASE_NOTES.md
           head -1 RELEASE_NOTES.md

@@ -33,12 +33,18 @@
 
 #include <wrl/client.h>
 
+extern "C" {
+#include <libavutil/channel_layout.h>
+#include <libswresample/swresample.h>
+}
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -447,6 +453,172 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// Mic + system-audio mixer — sums the two WASAPI sources into ONE 48 kHz
+// stereo track. Both sources are resampled with their own persistent
+// SwrContext, then sample-wise mixed on a fixed 10 ms tick. Without this,
+// chunk-wise appends would interleave mic and system audio instead of
+// mixing them (audible chaos with the default mic+systemAudio settings).
+// ---------------------------------------------------------------------------
+
+class AudioMixer {
+public:
+    static constexpr int kOutRate = 48000;
+    static constexpr int kOutChannels = 2;
+    /// Mixing tick: 10 ms @ 48 kHz.
+    static constexpr int kTickFrames = 480;
+    /// Per-source buffer cap (frames): 2 s — bounds memory if a source stalls.
+    static constexpr size_t kMaxSourceFrames = static_cast<size_t>(kOutRate) * 2;
+
+    ~AudioMixer() { stop(); }
+
+    /// Begin mixing into `enc` (pump thread runs until stop()).
+    void start(Encoder* enc) {
+        std::lock_guard<std::mutex> lock(m_);
+        enc_ = enc;
+        discard_ = false;
+        if (running_.exchange(true)) return;
+        worker_ = std::thread([this] { pump_loop(); });
+    }
+
+    /// Push one chunk from a WASAPI source (id distinguishes mic/loopback).
+    void write(int id, const float* data, int frames, int channels, int rate) {
+        if (!data || frames <= 0 || channels <= 0 || rate <= 0) return;
+        std::lock_guard<std::mutex> lock(m_);
+        Source& s = sources_[id];
+        if (!ensure_swr(s, channels, rate)) return;
+        const int out_frames = swr_get_out_samples(s.swr, frames);
+        if (out_frames <= 0) return;
+        std::vector<float> converted(static_cast<size_t>(out_frames) * kOutChannels);
+        const uint8_t* in_ptr = reinterpret_cast<const uint8_t*>(data);
+        uint8_t* dst[1] = {reinterpret_cast<uint8_t*>(converted.data())};
+        const int got = swr_convert(s.swr, dst, out_frames, &in_ptr, frames);
+        if (got <= 0) return;
+        s.buf.insert(s.buf.end(), converted.begin(),
+                     converted.begin() + static_cast<std::ptrdiff_t>(got) * kOutChannels);
+        const size_t cap = kMaxSourceFrames * kOutChannels;
+        if (s.buf.size() > cap) {
+            s.buf.erase(s.buf.begin(),
+                        s.buf.begin() + static_cast<std::ptrdiff_t>(s.buf.size() - cap));
+        }
+    }
+
+    /// Drop buffered audio (used when the recording is paused so the mix
+    /// stays aligned with the video, which drops frames while paused).
+    void clear() {
+        std::lock_guard<std::mutex> lock(m_);
+        for (auto& [id, s] : sources_) s.buf.clear();
+    }
+
+    void set_discard(bool d) {
+        std::lock_guard<std::mutex> lock(m_);
+        discard_ = d;
+    }
+
+    /// Stop the pump thread and flush whatever is buffered into the encoder.
+    void stop() {
+        Encoder* enc = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(m_);
+            enc = enc_;
+            discard_ = false;
+        }
+        if (running_.exchange(false)) {
+            // pump_loop checks running_ each tick (10 ms), so this joins fast.
+            if (worker_.joinable()) worker_.join();
+        }
+        if (enc) drain_all(*enc);
+    }
+
+private:
+    struct Source {
+        SwrContext* swr = nullptr;
+        int rate = 0;
+        int channels = 0;
+        std::vector<float> buf; // interleaved 48 kHz stereo
+    };
+
+    static bool ensure_swr(Source& s, int channels, int rate) {
+        if (s.swr && s.rate == rate && s.channels == channels) return true;
+        if (s.swr) {
+            swr_free(&s.swr);
+            s.swr = nullptr;
+        }
+        AVChannelLayout in_layout;
+        av_channel_layout_default(&in_layout, channels);
+        AVChannelLayout out_layout;
+        av_channel_layout_default(&out_layout, kOutChannels);
+        if (swr_alloc_set_opts2(&s.swr, &out_layout, AV_SAMPLE_FMT_FLT, kOutRate,
+                                &in_layout, AV_SAMPLE_FMT_FLT, rate,
+                                0, nullptr) < 0) {
+            s.swr = nullptr;
+            return false;
+        }
+        if (swr_init(s.swr) < 0) {
+            swr_free(&s.swr);
+            s.swr = nullptr;
+            return false;
+        }
+        s.rate = rate;
+        s.channels = channels;
+        return true;
+    }
+
+    /// Consume exactly `frames` from one source, zero-padding when short.
+    static void take(Source& s, size_t frames, std::vector<float>& into) {
+        const size_t have = std::min(frames, s.buf.size() / kOutChannels);
+        const float* src = s.buf.data();
+        for (size_t i = 0; i < have * kOutChannels; ++i) into[i] += src[i];
+        s.buf.erase(s.buf.begin(),
+                    s.buf.begin() + static_cast<std::ptrdiff_t>(have * kOutChannels));
+    }
+
+    void pump_loop() {
+        std::vector<float> mixed;
+        while (running_.load()) {
+            {
+                std::lock_guard<std::mutex> lock(m_);
+                if (enc_ && !discard_) {
+                    size_t n = 0;
+                    for (auto& [id, s] : sources_) {
+                        n = std::max(n, s.buf.size() / kOutChannels);
+                    }
+                    if (n > 0) {
+                        // Mix at most one 10 ms tick per pass so latency stays low.
+                        n = std::min(n, static_cast<size_t>(kTickFrames));
+                        mixed.assign(n * kOutChannels, 0.0f);
+                        for (auto& [id, s] : sources_) take(s, n, mixed);
+                        for (float& v : mixed) v = std::clamp(v, -1.0f, 1.0f);
+                        enc_->write_audio_f32(mixed.data(), static_cast<int>(n),
+                                              kOutChannels, kOutRate);
+                    }
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+
+    /// Final drain: mix everything that is left (zero-padding the shorter
+    /// source) and hand it to the encoder.
+    void drain_all(Encoder& enc) {
+        std::lock_guard<std::mutex> lock(m_);
+        size_t n = 0;
+        for (auto& [id, s] : sources_) n = std::max(n, s.buf.size() / kOutChannels);
+        if (n == 0) return;
+        std::vector<float> mixed(n * kOutChannels, 0.0f);
+        for (auto& [id, s] : sources_) take(s, n, mixed);
+        for (float& v : mixed) v = std::clamp(v, -1.0f, 1.0f);
+        enc.write_audio_f32(mixed.data(), static_cast<int>(n), kOutChannels, kOutRate);
+    }
+
+    std::map<int, Source> sources_;
+    std::mutex m_;
+    std::thread worker_;
+    Encoder* enc_ = nullptr;
+    bool discard_ = false;
+    std::atomic<bool> running_{false};
+};
+
+// ---------------------------------------------------------------------------
 // Global click hook → ripples
 // ---------------------------------------------------------------------------
 
@@ -722,15 +894,22 @@ bool run_capture_session(
         ok = enc && enc->valid();
     }
 
+    // One mixed audio track: both WASAPI sources feed the mixer, which
+    // resamples per-source and sample-wise sums into the encoder.
+    AudioMixer mixer;
+
     if (ok && p.systemAudio) {
-        loopback.start(true, [&enc](const float* a, int f, int c, int r) {
-            enc->write_audio_f32(a, f, c, r);
+        loopback.start(true, [&mixer](const float* a, int f, int c, int r) {
+            mixer.write(1, a, f, c, r);
         });
     }
     if (ok && p.mic) {
-        mic.start(false, [&enc](const float* a, int f, int c, int r) {
-            enc->write_audio_f32(a, f, c, r);
+        mic.start(false, [&mixer](const float* a, int f, int c, int r) {
+            mixer.write(2, a, f, c, r);
         });
+    }
+    if (ok && (p.mic || p.systemAudio)) {
+        mixer.start(enc.get());
     }
     if (ok && p.camera) {
         camera.start([&](const uint8_t* rgba, int w, int h) {
@@ -760,10 +939,15 @@ bool run_capture_session(
                 pause_started = std::chrono::steady_clock::now();
                 on_state("paused", last_state_ms);
             }
+            // Drop audio on every paused tick: the video timeline is frozen,
+            // so buffered/fresh audio would otherwise desync after resume.
+            mixer.set_discard(true);
+            mixer.clear();
             continue;
         }
         if (paused_now) {
             paused_now = false;
+            mixer.set_discard(false);
             paused_total_ms += static_cast<uint64_t>(
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - pause_started)
@@ -812,6 +996,18 @@ bool run_capture_session(
                 }
             }
             compose::draw_ripples(out_buf, w, h, mine);
+            // Write the pruned list back so expired ripples leave the hub
+            // (otherwise the hub vector grows for the whole recording).
+            {
+                std::lock_guard<std::mutex> lk(clicks.m);
+                if (mine.size() != clicks.ripples.size()) {
+                    for (auto& r : mine) {
+                        r.x += cap_origin_x;
+                        r.y += cap_origin_y;
+                    }
+                    clicks.ripples.swap(mine);
+                }
+            }
         }
         if (p.camera) {
             std::lock_guard<std::mutex> lk(latest_m);
@@ -828,15 +1024,17 @@ bool run_capture_session(
         }
     }
 
-    // Teardown.
+    // Teardown: stop producers first (joins their threads), then flush the
+    // mixer tail into the encoder before finalizing the file.
     clicks.stop();
     loopback.stop();
     mic.stop();
+    mixer.stop();
     camera.stop();
     screen.stop();
     if (enc && enc->valid()) ok = enc->finish();
     if (cancel.load()) {
-        DeleteFileA(p.out.c_str());
+        delete_file_utf8(p.out);
     }
 
     if (com_here) CoUninitialize();

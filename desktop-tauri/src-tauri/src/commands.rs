@@ -8,6 +8,28 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 
+/// Grant a directory to the runtime asset-protocol scope so the editor can
+/// stream recordings from custom recordings folders (`convertFileSrc`).
+/// Applied once per directory change.
+pub fn ensure_asset_scope(app: &AppHandle, dir: &std::path::Path) {
+    {
+        let mut applied = app
+            .state::<crate::state::AppState>()
+            .asset_scope_dir
+            .lock()
+            .unwrap();
+        if applied.as_deref() == Some(dir) {
+            return;
+        }
+        *applied = Some(dir.to_path_buf());
+    }
+    // `asset_protocol_scope` is available because Cargo.toml enables the
+    // tauri "protocol-asset" feature. Granting is idempotent per directory.
+    app.asset_protocol_scope()
+        .allow_directory(dir, true)
+        .ok();
+}
+
 // ---- app -------------------------------------------------------------------
 
 #[tauri::command]
@@ -72,6 +94,7 @@ pub fn rec_start_inner(app: &AppHandle, req: Value) -> Value {
             }
         }
     }
+    ensure_asset_scope(app, &crate::settings::recordings_dir(app));
     let out = crate::settings::recordings_dir(app).join(crate::library::recording_name("webm"));
     params["out"] = json!(out.to_string_lossy());
     match crate::engine::request(app, "start", params, 30_000) {
@@ -285,20 +308,28 @@ pub fn library_dir(app: AppHandle) -> Value {
 }
 
 #[tauri::command]
-pub fn library_pick_dir(app: AppHandle) -> Value {
+pub async fn library_pick_dir(app: AppHandle) -> Value {
     use tauri_plugin_dialog::DialogExt;
-    let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
-    app.dialog()
-        .file()
-        .set_title("CaptureDesk Recordings")
-        .pick_folder(move |p| {
-            let s = p.and_then(|f| f.into_path().ok()).map(|pb| pb.to_string_lossy().to_string());
-            let _ = tx.send(s);
-        });
-    match rx.recv_timeout(std::time::Duration::from_secs(300)) {
-        Ok(Some(dir)) => json!({ "ok": true, "dir": dir }),
-        _ => json!({ "ok": false }),
-    }
+    // The native folder dialog stays open for as long as the user likes:
+    // run the wait off the IPC thread so other commands keep flowing.
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
+        app.dialog()
+            .file()
+            .set_title("CaptureDesk Recordings")
+            .pick_folder(move |p| {
+                let s = p
+                    .and_then(|f| f.into_path().ok())
+                    .map(|pb| pb.to_string_lossy().to_string());
+                let _ = tx.send(s);
+            });
+        match rx.recv_timeout(std::time::Duration::from_secs(600)) {
+            Ok(Some(dir)) => json!({ "ok": true, "dir": dir }),
+            _ => json!({ "ok": false }),
+        }
+    })
+    .await;
+    result.unwrap_or_else(|_| json!({ "ok": false }))
 }
 
 // ---- editor ----------------------------------------------------------------
@@ -313,7 +344,20 @@ pub fn editor_open(app: AppHandle, file: Option<String>) -> Value {
 
 /// Create (or focus) the CaptureDesk Editor and load a recording into it.
 pub fn open_editor_with_file(app: &AppHandle, file: Option<String>) -> Result<(), String> {
-    let w = match app.get_webview_window("editor") {
+    let existing = app.get_webview_window("editor");
+    // Make sure the recordings folder is streamable by the editor webview
+    // (asset protocol) even before the first recording was started.
+    ensure_asset_scope(app, &crate::settings::recordings_dir(app));
+    if let Some(f) = &file {
+        // Queue the file first: a freshly created editor window has not
+        // registered its `editor:load` listener yet, so it pulls the queued
+        // file via `editor_take_pending` once its JS boots.
+        *app.state::<crate::state::AppState>()
+            .pending_editor_file
+            .lock()
+            .unwrap() = Some(f.clone());
+    }
+    let w = match existing {
         Some(w) => w,
         None => tauri::WebviewWindowBuilder::new(
             app,
@@ -329,9 +373,23 @@ pub fn open_editor_with_file(app: &AppHandle, file: Option<String>) -> Result<()
     let _ = w.show();
     let _ = w.set_focus();
     if let Some(f) = file {
+        // Already-open window: the listener catches this directly.
         let _ = app.emit_to("editor", "editor:load", json!({ "file": f }));
     }
     Ok(())
+}
+
+/// Hand the queued editor file to a freshly booted editor window and clear
+/// the slot (returns null when there is nothing queued).
+#[tauri::command]
+pub fn editor_take_pending(app: AppHandle) -> Value {
+    let file = app
+        .state::<crate::state::AppState>()
+        .pending_editor_file
+        .lock()
+        .unwrap()
+        .take();
+    json!({ "file": file })
 }
 
 // ---- restricted filesystem -------------------------------------------------

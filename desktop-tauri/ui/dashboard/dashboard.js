@@ -133,7 +133,8 @@ startBtn.addEventListener('click', async () => {
   }
   // Screen mode: auto-start when a single display, else pick.
   const { sources } = await window.capturedesk.listSources({ screens: true, windows: false });
-  const screens = sources.filter((x) => x.type === 'screen');
+  // Engine source entries carry their kind in `kind` (not `type`).
+  const screens = sources.filter((x) => x.kind === 'screen');
   if (screens.length <= 1) {
     const res = await window.capturedesk.startRecording({ mode: 'screen', sourceId: screens[0] && screens[0].id, options: collectOptions() });
     if (!res.ok && res.error) window.toast(res.error, 'err');
@@ -197,11 +198,12 @@ async function renderPicker(query) {
     const btn = document.createElement('button');
     btn.className = 'pick';
     const img = document.createElement('img');
-    img.src = src.thumbnail || '';
+    // Engine sources carry thumbnails in `thumb` and the entry type in `kind`.
+    img.src = src.thumb || '';
     img.alt = '';
     const label = document.createElement('div');
     label.className = 'pname';
-    label.textContent = src.name || (src.type === 'screen' ? 'Display' : 'Window');
+    label.textContent = src.name || (src.kind === 'screen' ? 'Display' : 'Window');
     btn.append(img, label);
     btn.addEventListener('click', async () => {
       $('pickerBackdrop').classList.remove('open');

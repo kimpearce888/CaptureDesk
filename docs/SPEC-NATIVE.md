@@ -1,6 +1,6 @@
 # CaptureDesk v2 — Native Stack Specification & Decision Record
 
-Branch: `v2-native` · Status: alpha (2.0.0-alpha.1) · Feature parity with v1: full
+Branch: `main` (merged from `v2-native`) · Status: **2.0.0 (final)** · Feature parity with v1: full
 
 The v2 branch keeps the **product identical** — same features, same brand, same
 UI copy — while replacing the JavaScript-only runtime with a native stack

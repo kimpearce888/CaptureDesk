@@ -35,9 +35,15 @@ extern "C" {
 namespace cde {
 
 // Small portability shim so the cancel path can clean up partial outputs.
-void DeleteFile_portable(const std::string& path) {
+// UTF-8 aware: DeleteFileA would silently fail on non-ASCII paths.
+void delete_file_utf8(const std::string& path) {
 #ifdef _WIN32
-    DeleteFileA(path.c_str());
+    const int wlen = MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, nullptr, 0);
+    if (wlen > 0) {
+        std::wstring w(static_cast<size_t>(wlen), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, w.data(), wlen);
+        DeleteFileW(w.c_str());
+    }
 #else
     std::remove(path.c_str());
 #endif
@@ -314,7 +320,7 @@ bool run_transcode(const json& spec, const std::atomic<bool>& cancel,
         avcodec_free_context(&vdec);
         avcodec_free_context(&adec);
         avformat_close_input(&ictx);
-        DeleteFile_portable(out);
+        delete_file_utf8(out);
         error = "cancelled";
         return false;
     }

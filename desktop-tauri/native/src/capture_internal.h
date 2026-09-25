@@ -11,8 +11,11 @@
 
 namespace cde {
 
-/// Enumerate capturable screens and windows (platform impl).
+/// Enumerate capturable sources (platform impl).
 json list_sources_impl(const json& kinds);
+
+/// Delete a file given as a UTF-8 path (ANSI-safe on Windows).
+void delete_file_utf8(const std::string& path);
 
 /// Export pipeline: trim, burn overlays, encode (cross-platform, libav).
 bool run_transcode(const json& spec, const std::atomic<bool>& cancel,

@@ -9,8 +9,11 @@ const dim = document.getElementById('dim');
 
 const q = new URLSearchParams(location.search);
 const displayId = Number(q.get('displayId'));
-const displayX = Number(q.get('displayX'));
-const displayY = Number(q.get('displayY'));
+// PHYSICAL monitor origin (screen px) — the engine's frames are physical.
+const displayX = Number(q.get('displayX')) || 0;
+const displayY = Number(q.get('displayY')) || 0;
+// DIP → physical factor for this display (WebView2 devicePixelRatio).
+const scale = Number(q.get('scale')) || window.devicePixelRatio || 1;
 
 let dragging = false;
 let startX = 0;
@@ -56,14 +59,16 @@ document.addEventListener('mouseup', (e) => {
     return;
   }
   confirmed = true;
+  // Report the rect in PHYSICAL pixels: pointer coords are DIP inside the
+  // window; the engine crops physical capture frames.
   window.capturedesk.regionSelected({
     displayId,
     canceled: false,
     rect: {
-      x: displayX + r.x,
-      y: displayY + r.y,
-      width: r.width,
-      height: r.height,
+      x: Math.round(displayX + r.x * scale),
+      y: Math.round(displayY + r.y * scale),
+      width: Math.max(2, Math.round(r.width * scale) & ~1),
+      height: Math.max(2, Math.round(r.height * scale) & ~1),
     },
   });
 });

@@ -55,7 +55,11 @@ async function load(file) {
   filePath = file;
   fileBase = file.split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
   $('fileName').value = fileBase;
-  video.src = fileUrl(file);
+  // Tauri webviews run on an http origin: raw file:// URLs are blocked.
+  // Stream through the asset protocol, with file:// as a dev fallback.
+  video.src =
+    (window.capturedesk.assetUrl && window.capturedesk.assetUrl(file)) ||
+    fileUrl(file);
   await resolveDuration();
   trim = { inS: 0, outS: duration };
   updateTrimUI();
@@ -415,6 +419,17 @@ window.capturedesk.on('editor:smoke', async () => {
 });
 
 // ---- boot ------------------------------------------------------------------
+
+// A file queued by the shell while this window was still loading (closes the
+// editor:load race on first open and on capturedesk:// deep links).
+if (window.capturedesk.editorTakePending) {
+  window.capturedesk
+    .editorTakePending()
+    .then((r) => {
+      if (r && r.file) load(r.file);
+    })
+    .catch(() => {});
+}
 
 const hashFile = decodeURIComponent(location.hash.replace(/^#/, ''));
 if (hashFile) load(hashFile);

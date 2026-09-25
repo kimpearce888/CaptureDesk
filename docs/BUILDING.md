@@ -4,7 +4,7 @@ CaptureDesk has two stacks in this repository:
 
 | Stack | Location | Status |
 |---|---|---|
-| **v2 native** (Tauri 2 + C++ engine + C# host) | `desktop-tauri/`, `native-host-cs/` | Current (`main`) — released as `v2.0.0-alpha.1`+ |
+| **v2 native** (Tauri 2 + C++ engine + C# host) | `desktop-tauri/`, `native-host-cs/` | Current (`main`) — released as `v2.0.0`+ |
 | v1 Electron | `desktop/` | Superseded, kept for reference — released as `v1.0.0` |
 
 ## Prerequisites

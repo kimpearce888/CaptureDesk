@@ -7,10 +7,38 @@ use tauri::{AppHandle, Emitter, LogicalPosition, Manager, WebviewUrl, WebviewWin
 
 /// Post-startup window state.
 pub fn prepare(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    // The toolbar only exists while a session is live.
+    // The floating toolbar exists from startup (hidden); it is shown only
+    // while a session is live. A toolbar failure must not block startup —
+    // set_toolbar_visible retries the creation lazily.
+    let _ = ensure_toolbar(app);
     if let Some(w) = app.get_webview_window("toolbar") {
         let _ = w.hide();
     }
+    Ok(())
+}
+
+/// Create the floating toolbar window once (hidden by default).
+pub fn ensure_toolbar(app: &AppHandle) -> Result<(), String> {
+    if app.get_webview_window("toolbar").is_some() {
+        return Ok(());
+    }
+    let w = WebviewWindowBuilder::new(
+        app,
+        "toolbar",
+        WebviewUrl::App("toolbar/index.html".into()),
+    )
+    .title("CaptureDesk Toolbar")
+    .decorations(false)
+    .transparent(true)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    .focused(false)
+    .visible(false)
+    .inner_size(420.0, 64.0)
+    .build()
+    .map_err(|e| e.to_string())?;
+    let _ = w.hide();
     Ok(())
 }
 
@@ -24,6 +52,7 @@ pub fn focus_main(app: &AppHandle) {
 
 /// Show/hide the floating toolbar, centered near the top of the screen.
 pub fn set_toolbar_visible(app: &AppHandle, visible: bool) -> Result<(), String> {
+    let _ = ensure_toolbar(app);
     let w = app
         .get_webview_window("toolbar")
         .ok_or_else(|| "toolbar window missing".to_string())?;
@@ -53,10 +82,25 @@ pub fn begin_region(app: &AppHandle) -> Value {
             let _ = w.set_focus();
         }
         None => {
-            let builder = WebviewWindowBuilder::new(
+            // The picker reads the monitor's PHYSICAL origin and the scale
+            // factor from the URL so it can report a crop rect in physical
+            // pixels — exactly what the engine's frames use. Builder
+            // position/inner_size are LOGICAL pixels, so physical metrics
+            // are divided by the scale factor here.
+            let mon = app.primary_monitor().ok().flatten();
+            let url = match &mon {
+                Some(m) => format!(
+                    "region/index.html?displayId=0&displayX={}&displayY={}&scale={}",
+                    m.position().x,
+                    m.position().y,
+                    m.scale_factor()
+                ),
+                None => "region/index.html?displayId=0&displayX=0&displayY=0&scale=1".to_string(),
+            };
+            let mut builder = WebviewWindowBuilder::new(
                 app,
                 "region",
-                WebviewUrl::App("region/index.html".into()),
+                WebviewUrl::App(url.into()),
             )
             .title("CaptureDesk Region")
             .decorations(false)
@@ -65,12 +109,20 @@ pub fn begin_region(app: &AppHandle) -> Value {
             .skip_taskbar(true)
             .resizable(false)
             .focused(true);
-            let builder = if let Ok(Some(m)) = app.primary_monitor() {
-                builder
-                    .position(m.position().x as f64, m.position().y as f64)
-                    .inner_size(m.size().width as f64, m.size().height as f64)
-            } else {
-                builder.inner_size(1280.0, 800.0)
+            builder = match &mon {
+                Some(m) => {
+                    let scale = m.scale_factor();
+                    builder
+                        .position(
+                            m.position().x as f64 / scale,
+                            m.position().y as f64 / scale,
+                        )
+                        .inner_size(
+                            m.size().width as f64 / scale,
+                            m.size().height as f64 / scale,
+                        )
+                }
+                None => builder.inner_size(1280.0, 800.0),
             };
             if let Err(e) = builder.build() {
                 return json!({ "ok": false, "error": e.to_string() });

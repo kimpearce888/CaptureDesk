@@ -110,11 +110,25 @@
 
     // ---- editor ------------------------------------------------------------
     openEditor: (file) => invoke('editor_open', { file }),
+    editorTakePending: () => invoke('editor_take_pending'),
 
     // ---- restricted filesystem ----------------------------------------------
     appPath: () => invoke('fs_app_path'),
     tmpDir: () => invoke('fs_tmp_dir'),
     recordingsDir: () => invoke('fs_recordings_dir'),
+    /**
+     * Asset-protocol URL for an absolute path (streamable by webviews).
+     * Returns '' when the bridge cannot produce one — callers fall back.
+     * @param {string} p Absolute path.
+     * @returns {string}
+     */
+    assetUrl(p) {
+      try {
+        return convertFileSrc(String(p || ''));
+      } catch {
+        return '';
+      }
+    },
     appFileUrl: (rel) =>
       invoke('fs_app_file_url', { rel }).then((r) => ({
         url: r && r.path ? convertFileSrc(r.path) : '',
