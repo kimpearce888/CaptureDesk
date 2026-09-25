@@ -1,0 +1,216 @@
+name: CaptureDesk Release (v2 native stack)
+
+on:
+  push:
+    tags: ["v2*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (workflow_dispatch only)"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  windows-build:
+    name: Windows build — engine (C++) + host (C#) + shell (Tauri) + installer (NSIS)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-tauri/src-tauri
+
+      # ---- C++ engine -----------------------------------------------------
+      - name: Install engine deps (vcpkg)
+        run: vcpkg install nlohmann-json ffmpeg[x264,vpx,opus] --triplet x64-windows
+
+      - name: Configure engine (CMake + vcpkg toolchain)
+        run: |
+          cmake -S desktop-tauri/native -B desktop-tauri/native/build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows
+
+      - name: Build engine
+        run: cmake --build desktop-tauri/native/build --config Release --parallel
+
+      - name: Locate engine executable
+        shell: bash
+        run: |
+          test -f desktop-tauri/native/build/capturedesk-engine.exe
+          echo "ENGINE exe OK: $(du -h desktop-tauri/native/build/capturedesk-engine.exe | cut -f1)"
+
+      # ---- C# native messaging host ---------------------------------------
+      - name: Publish native host (single-file, self-contained)
+        run: dotnet publish native-host-cs/capturedesk-native-host.csproj -c Release -r win-x64 -o native-host-cs/publish --nologo
+
+      - name: Smoke host (native messaging ping/pong)
+        shell: pwsh
+        run: |
+          $json = '{"type":"ping"}'
+          $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+          $ms = New-Object IO.MemoryStream
+          $ms.Write([BitConverter]::GetBytes([uint32]$bytes.Length), 0, 4)
+          $ms.Write($bytes, 0, $bytes.Length)
+          $out = $ms.ToArray() | & native-host-cs/publish/capturedesk-native-host.exe
+          if ("$out" -notmatch 'pong') { throw "host smoke failed: $out" }
+          Write-Host "host smoke OK: $out"
+
+      # ---- Tauri shell ------------------------------------------------------
+      - name: Stage engine as bundle resource
+        shell: bash
+        run: |
+          mkdir -p desktop-tauri/src-tauri/engine
+          cp desktop-tauri/native/build/capturedesk-engine.exe desktop-tauri/src-tauri/engine/
+
+      - name: Build Tauri shell (release, no bundler)
+        shell: bash
+        run: |
+          npm install -g @tauri-apps/cli@2
+          cd desktop-tauri/src-tauri
+          tauri build --no-bundle
+
+      - name: Stage application files
+        shell: bash
+        run: |
+          mkdir -p build/stage
+          cp desktop-tauri/target/release/CaptureDesk.exe build/stage/
+          if [ -f desktop-tauri/target/release/WebView2Loader.dll ]; then
+            cp desktop-tauri/target/release/WebView2Loader.dll build/stage/
+          fi
+          ls -la build/stage
+
+      # ---- NSIS installer ---------------------------------------------------
+      - name: Compute stable extension ID from manifest key
+        shell: bash
+        run: |
+          EXT_ID=$(node -e '
+            const fs = require("fs"), crypto = require("crypto");
+            const m = JSON.parse(fs.readFileSync("extension/manifest.json", "utf8"));
+            if (!m.key) throw new Error("extension/manifest.json is missing the key field");
+            const der = Buffer.from(m.key, "base64");
+            const h = crypto.createHash("sha256").update(der).digest();
+            let id = "";
+            for (let i = 0; i < 16; i++) id += String.fromCharCode(97 + (h[i] % 26));
+            console.log(id);
+          ')
+          echo "EXT_ID=$EXT_ID" >> "$GITHUB_ENV"
+          echo "CaptureDesk extension ID: $EXT_ID"
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Compile CaptureDeskSetup.exe
+        shell: bash
+        run: |
+          MAKEN="/c/Program Files (x86)/NSIS/makensis.exe"
+          [ -f "$MAKEN" ] || MAKEN="$(command -v makensis)"
+          echo "using makensis: $MAKEN"
+          mkdir -p dist
+          "$MAKEN" \
+            -DAPPSRC="$PWD/build/stage" \
+            -DENGINESRC="$PWD/desktop-tauri/native/build/capturedesk-engine.exe" \
+            -DHOSTSRC="$PWD/native-host-cs/publish/capturedesk-native-host.exe" \
+            -DCD_EXT_ID="$EXT_ID" \
+            -DROOTDIR="$PWD" \
+            -DOUTFILE="$PWD/dist/CaptureDeskSetup.exe" \
+            -V2 installer/CaptureDesk.nsi
+          test -s dist/CaptureDeskSetup.exe
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CaptureDeskSetup
+          path: dist/CaptureDeskSetup.exe
+          if-no-files-found: error
+
+  publish:
+    name: Package extension + publish GitHub Release
+    needs: windows-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build extension bundle
+        run: |
+          bash scripts/build-extension.sh
+          test -s dist/CaptureDesk-Chrome-Extension.zip
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: CaptureDeskSetup
+          path: dist/
+
+      - name: SHA-256 checksums
+        run: |
+          cd dist
+          sha256sum CaptureDeskSetup.exe CaptureDesk-Chrome-Extension.zip > checksums.txt
+          cat checksums.txt
+
+      - name: Release notes
+        run: |
+          cat > RELEASE_NOTES.md <<'EOF'
+          # CaptureDesk v2.0.0-alpha.1 — native stack
+
+          The same CaptureDesk suite rebuilt on a native foundation (branch `v2-native`):
+
+          | Component | Stack |
+          |---|---|
+          | Desktop app | Tauri 2 (Rust shell) + webview UI |
+          | Capture & encode | C++ engine — Windows.Graphics.Capture, WASAPI, Media Foundation, FFmpeg (WebM VP9/VP8, MP4 H.264, GIF) |
+          | Native messaging host | C# / .NET 8 single-file executable (self-contained) |
+          | Chrome extension | Manifest V3 (unchanged, version 2.0.0 with a stable extension ID) |
+
+          ## Install
+          1. Run `CaptureDeskSetup.exe` (per-user install; registers the native messaging
+             host and the `capturedesk://` handler; ships the C++ engine sidecar).
+          2. Load the extension: unzip `CaptureDesk-Chrome-Extension.zip` and use
+             chrome://extensions → Developer mode → *Load unpacked*.
+          3. The extension talks to the desktop app through the native host. The stable
+             extension ID is baked into the host manifest at install time.
+
+          ## Verification
+          - SHA-256 checksums: `checksums.txt`.
+          - Engine encode pipelines (WebM/MP4/GIF) and host protocol ping are exercised
+            in CI on every push.
+
+          ## Alpha notes
+          - Windows 10/11 x64 only; WebView2 runtime required (preinstalled on updated systems).
+          - This is an alpha: please report issues with logs from `%APPDATA%\CaptureDesk`.
+          - Recordings and exports are always written locally. Nothing leaves the device.
+          EOF
+
+      - name: Create GitHub Release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ inputs.tag }}"
+          [ -n "$TAG" ] || TAG="${GITHUB_REF_NAME}"
+          echo "publishing tag: $TAG"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber \
+              dist/CaptureDeskSetup.exe dist/CaptureDesk-Chrome-Extension.zip dist/checksums.txt
+          else
+            gh release create "$TAG" \
+              --title "CaptureDesk $TAG — native stack" \
+              --notes-file RELEASE_NOTES.md \
+              dist/CaptureDeskSetup.exe dist/CaptureDesk-Chrome-Extension.zip dist/checksums.txt
+          fi
+          gh release view "$TAG" --json assets --jq '.assets[] | {name, state, size}'

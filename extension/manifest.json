@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CaptureDesk",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoO/nClKoR4bm/k9gh2bBK/lP3flFxvGjpntwUgT2NilpZohn/7HDwaF1DtTmgLIEY9FwimraqNQkzK9sNEUXrvkGdsz0Qk4KDLgKDRuXqIOb0f4/w8MzxyPyMGgmE5rYc6vytQCtFHHw+NmFKFZMDaHU14FOMBKTP8/qnzjTwwT8P1Jrh+FBgsK58MkhaDTzoepAf0RG85YmRFhDZa3P+AIkx6w5r/MZ8F7Y13rdw/io7yZxMiUIyEEdNjOU0UxYY1jjLa20uevdnR8LsuEgmpjoxzj8ONzOo2cqlrJJ8j2umqmGPzmic7I//g6qD1uo3MY2UAPwdODRzJkgR9isFQIDAQAB",
   "description": "Screen recorder for tabs, windows, and your full desktop — camera bubble, microphone, cursor & click highlights, instant local saving. 100% on-device.",
   "minimum_chrome_version": "116",
   "offline_enabled": true,
@@ -34,5 +35,7 @@
     "downloads",
     "scripting"
   ],
-  "host_permissions": ["<all_urls>"]
+  "host_permissions": [
+    "<all_urls>"
+  ]
 }
