@@ -12,17 +12,14 @@ use tauri::{AppHandle, Emitter, Manager};
 /// stream recordings from custom recordings folders (`convertFileSrc`).
 /// Applied once per directory change.
 pub fn ensure_asset_scope(app: &AppHandle, dir: &std::path::Path) {
-    {
-        let mut applied = app
-            .state::<crate::state::AppState>()
-            .asset_scope_dir
-            .lock()
-            .unwrap();
-        if applied.as_deref() == Some(dir) {
-            return;
-        }
-        *applied = Some(dir.to_path_buf());
+    let st = app.state::<crate::state::AppState>();
+    let mut applied = st.asset_scope_dir.lock().unwrap();
+    if applied.as_deref() == Some(dir) {
+        return;
     }
+    *applied = Some(dir.to_path_buf());
+    drop(applied);
+    drop(st);
     // `asset_protocol_scope` is available because Cargo.toml enables the
     // tauri "protocol-asset" feature. Granting is idempotent per directory.
     app.asset_protocol_scope()
