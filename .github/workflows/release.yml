@@ -146,14 +146,17 @@ jobs:
           MAKEN="/c/Program Files (x86)/NSIS/makensis.exe"
           [ -f "$MAKEN" ] || MAKEN="$(command -v makensis)"
           echo "using makensis: $MAKEN"
+          ls -la installer/assets
           mkdir -p dist
+          # ROOTDIR is relative (makensis CWD = repo root) — the most portable
+          # form for File directives. Input binaries use Windows-native paths.
           "$MAKEN" \
-            -DAPPSRC="$PWD/build/stage" \
-            -DENGINESRC="$PWD/$ENGINE_PATH" \
-            -DHOSTSRC="$PWD/native-host-cs/publish/capturedesk-native-host.exe" \
+            -DAPPSRC="$(cygpath -w "$PWD/build/stage")" \
+            -DENGINESRC="$(cygpath -w "$PWD/$ENGINE_PATH")" \
+            -DHOSTSRC="$(cygpath -w "$PWD/native-host-cs/publish/capturedesk-native-host.exe")" \
             -DCD_EXT_ID="$EXT_ID" \
-            -DROOTDIR="$PWD" \
-            -DOUTFILE="$PWD/dist/CaptureDeskSetup.exe" \
+            -DROOTDIR="." \
+            -DOUTFILE="$(cygpath -w "$PWD/dist/CaptureDeskSetup.exe")" \
             -V2 installer/CaptureDesk.nsi
           test -s dist/CaptureDeskSetup.exe
           ls -la dist
