@@ -36,6 +36,9 @@ jobs:
       # ---- C++ engine -----------------------------------------------------
       - name: Install engine deps (vcpkg)
         run: vcpkg install nlohmann-json ffmpeg[x264,vpx,opus] --triplet x64-windows
+        env:
+          VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Configure engine (CMake + vcpkg toolchain)
         run: |
@@ -98,7 +101,17 @@ jobs:
         shell: bash
         run: |
           mkdir -p build/stage
-          cp desktop-tauri/target/release/CaptureDesk.exe build/stage/
+          BIN=""
+          for c in desktop-tauri/target/release/CaptureDesk.exe \
+                   desktop-tauri/target/release/capturedesk-desktop.exe; do
+            if [ -f "$c" ]; then BIN="$c"; break; fi
+          done
+          if [ -z "$BIN" ]; then
+            echo "application binary not found" >&2
+            ls desktop-tauri/target/release 2>/dev/null || true
+            exit 1
+          fi
+          cp "$BIN" build/stage/CaptureDesk.exe
           if [ -f desktop-tauri/target/release/WebView2Loader.dll ]; then
             cp desktop-tauri/target/release/WebView2Loader.dll build/stage/
           fi
