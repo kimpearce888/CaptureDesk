@@ -51,7 +51,7 @@ SetCompressor /SOLID lzma
 !include "FileFunc.nsh"
 
 !define PRODUCT       "CaptureDesk"
-!define PRODUCTVER    "2.0.0"
+!define PRODUCTVER    "2.1.0"
 !define PUBLISHER     "CaptureDesk Project"
 !define APPID         "com.capturedesk.desktop"
 !define REGKEY        "Software\CaptureDesk"
@@ -63,7 +63,7 @@ OutFile "${OUTFILE}"
 InstallDir "$LOCALAPPDATA\Programs\CaptureDesk"
 InstallDirRegKey HKCU "${REGKEY}" "InstallPath"
 RequestExecutionLevel user
-VIProductVersion "2.0.0.0"
+VIProductVersion "2.1.0.0"
 VIAddVersionKey "ProductName" "${PRODUCT}"
 VIAddVersionKey "FileDescription" "${PRODUCT} Setup"
 VIAddVersionKey "CompanyName" "${PUBLISHER}"

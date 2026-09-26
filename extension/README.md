@@ -39,7 +39,7 @@ Chrome/Chromium 116 or newer).
 | --- | --- |
 | "Manifest file is missing or unreadable" when loading | You selected the wrong folder. Pick the folder that **directly contains `manifest.json`**. |
 | Popup says the background service is not responding | Open `chrome://extensions`, click the **reload** icon on the CaptureDesk card, then reopen the popup (this also happens after the extension was updated while the popup was open). |
-| Popup footer says "Desktop app not connected" | That is **not an error** — recordings save to `Downloads/CaptureDesk/`. Install/launch CaptureDesk Desktop (v2.0.0+) to save into its library instead. |
+| Popup footer says "Desktop app not connected" | That is **not an error** — recordings save to `Downloads/CaptureDesk/`. Install/launch CaptureDesk Desktop (v2.1.0+) to save into its library instead. |
 | Record button does nothing on a `chrome://` page | Chrome forbids capturing browser pages. Switch to a normal `http(s)://` tab, or use Window/Screen mode. |
 | No sound in Window/Screen mode | Tick **Share audio** in Chrome's share picker; tab recordings always include tab audio. |
 | Recording saved under the wrong name | Duplicate names are auto-numbered; check `Downloads/CaptureDesk/`. |

@@ -5,14 +5,14 @@
 **Record your screen, camera and mic. Annotate, trim, export.**
 **All native. All local. Nothing ever leaves your machine.**
 
-[![Release](https://img.shields.io/badge/release-v2.0.0-14B8A6?labelColor=0B1120)](../../releases/latest)
+[![Release](https://img.shields.io/badge/release-v2.1.0-14B8A6?labelColor=0B1120)](../../releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0E7490?labelColor=0B1120)](../../releases/latest)
 [![Engine](https://img.shields.io/badge/engine-C%2B%2B20%20·%20FFmpeg-086E96?labelColor=0B1120)](docs/SPEC-NATIVE.md)
 [![Shell](https://img.shields.io/badge/shell-Tauri%202%20(Rust)-0D9488?labelColor=0B1120)](desktop-tauri)
 [![Privacy](https://img.shields.io/badge/privacy-100%25%20local-5EEAD4?labelColor=0B1120)](#privacy-by-design)
 [![License](https://img.shields.io/badge/license-MIT-94A3B8?labelColor=0B1120)](LICENSE)
 
-### [⬇ Download CaptureDesk v2.0.0](../../releases/latest) &nbsp;·&nbsp; [User guide](docs/USER-GUIDE.md) &nbsp;·&nbsp; [Build from source](docs/BUILDING.md)
+### [⬇ Download CaptureDesk v2.1.0](../../releases/latest) &nbsp;·&nbsp; [User guide](docs/USER-GUIDE.md) &nbsp;·&nbsp; [Build from source](docs/BUILDING.md)
 
 </div>
 

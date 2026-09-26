@@ -251,6 +251,28 @@ jobs:
           | Native messaging host | C# / .NET 8 single-file executable (self-contained) |
           | Chrome extension | Manifest V3 (JS — the Chrome-mandated language), stable extension ID |
 
+          ## What's new
+          - **Zero-DLL engine.** FFmpeg, x264, opus and the C++ runtime are now
+            statically linked INTO `capturedesk-engine.exe`. The installer carries no
+            companion DLLs and the machine needs none — the whole
+            “…dll was not found” error class is eliminated at the root, and CI
+            hard-fails if a build ever regresses to dynamic linking.
+          - **Area selection that can never lock your PC.** The region picker now
+            shows a frozen snapshot of your desktop instead of a live translucent
+            overlay, and it always stays escapable: `Esc`, `Alt+F4`, the Cancel pill,
+            clicking another window, plus 90 s/180 s auto-cancels. The fullscreen
+            white-overlay freeze reported on some GPU/WebView2 combinations is gone.
+          - **Region recordings crop correctly** — exactly the selected rectangle is
+            captured (previously the full frame was recorded).
+          - **Extension with honest feedback.** The popup probes the native messaging
+            host on open and shows the active save destination (“Connected to
+            CaptureDesk Desktop” vs “saves go to Downloads”); every failure path has
+            a readable message and a fix, and the zip includes a troubleshooting
+            table.
+          - **Windows N editions handled** — the app detects missing Media Foundation
+            components up front and shows a readable “install the Media Feature Pack”
+            message instead of cryptic loader errors.
+
           ## Install
           1. Run `CaptureDeskSetup.exe` (per-user install; registers the native messaging
              host and the `capturedesk://` handler; the C++ engine ships **self-contained**

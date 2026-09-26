@@ -9,7 +9,7 @@ namespace cde {
 
 using json = nlohmann::json;
 
-inline constexpr const char* kEngineVersion = "2.0.0";
+inline constexpr const char* kEngineVersion = "2.1.0";
 
 // ---- cross-TU engine plumbing (defined in main.cpp / transcode.cpp) ----
 /// Emit an async event line on stdout (defined in main.cpp).
