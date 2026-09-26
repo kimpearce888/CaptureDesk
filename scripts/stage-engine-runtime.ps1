@@ -64,7 +64,8 @@ function Get-Imports([string]$Binary, [string]$Dumpbin) {
   $out = (& $Dumpbin -DEPENDENTS $Binary 2>$null | Out-String)
   $names = @()
   $in = $false
-  foreach ($line in ($out -split "`r?`n")) {
+  # -split takes a REGEX: CRLF or LF line endings, optional CR.
+  foreach ($line in ($out -split '\r?\n')) {
     if ($line -match 'dependencies:') { $in = $true; continue }
     if ($in -and $line -match '^\s{4,}(\S+\.dll)\s*$') { $names += $Matches[1].ToLower(); continue }
     if ($in -and $line -match '^\s*$') { $in = $false; continue }
@@ -121,7 +122,13 @@ function Stage-Dll([string]$Name) {
 }
 
 if ($dumpbin) {
-  foreach ($dep in (Get-Imports $EngineExe $dumpbin)) { $queue.Enqueue($dep) }
+  $engineImports = @(Get-Imports $EngineExe $dumpbin)
+  if ($engineImports.Count -eq 0) {
+    throw ("import-table parse of '{0}' returned no dependencies — refusing to stage. " +
+           "A PE executable always imports at least KERNEL32.dll, so this is a parser failure.") -f $EngineExe
+  }
+  Write-Host ("engine imports ({0}): {1}" -f $engineImports.Count, ($engineImports -join ', '))
+  foreach ($dep in $engineImports) { $queue.Enqueue($dep) }
   while ($queue.Count -gt 0) { Stage-Dll ($queue.Dequeue()) }
 }
 else {
@@ -135,5 +142,9 @@ else {
 }
 
 Write-Host ""
-Write-Host "engine stage ready ($((Get-ChildItem $stage).Count) files):"
+$copiedCount = @(Get-ChildItem $stage -Filter '*.dll').Count
+if ($dumpbin -and $copiedCount -eq 0) {
+  throw "no DLLs were staged — the engine would launch without its FFmpeg runtime"
+}
+Write-Host "engine stage ready ($copiedCount DLLs + 1 exe):"
 Get-ChildItem $stage | ForEach-Object { Write-Host ("  {0,12:N0}  {1}" -f $_.Length, $_.Name) }
