@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="CaptureDesk — local-first screen studio for Windows">
+  <defs>
+    <linearGradient id="cd-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1120"/>
+      <stop offset="1" stop-color="#101C31"/>
+    </linearGradient>
+    <linearGradient id="cd-badge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14B8A6"/>
+      <stop offset="1" stop-color="#086E96"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background -->
+  <rect width="1200" height="320" fill="url(#cd-bg)"/>
+
+  <!-- logo badge (monitor + rec dot), scaled from the canonical 128px mark -->
+  <g transform="translate(545,26) scale(0.859375)">
+    <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#cd-badge)"/>
+    <rect x="30" y="40" width="68" height="46" rx="8" fill="none" stroke="#FFFFFF" stroke-width="7"/>
+    <path d="M64 86v10M48 100h32" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="101" cy="38" r="15" fill="#FFFFFF"/>
+    <circle cx="101" cy="38" r="7.5" fill="#EF4444"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="600" y="212" text-anchor="middle" font-family="Segoe UI, system-ui, -apple-system, sans-serif" font-size="88" font-weight="700" letter-spacing="0.5"><tspan fill="#F1F5F9">Capture</tspan><tspan fill="#14B8A6">Desk</tspan></text>
+
+  <!-- tagline -->
+  <text x="600" y="254" text-anchor="middle" font-family="Segoe UI, system-ui, -apple-system, sans-serif" font-size="25" fill="#94A3B8">Local-first screen studio for Windows — record, annotate, export.</text>
+
+  <!-- feature chips -->
+  <rect x="232" y="278" width="240" height="38" rx="19" fill="#16233A" stroke="#334155"/>
+  <text x="352" y="303" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="18" fill="#5EEAD4">Screen · Camera · Mic</text>
+
+  <rect x="496" y="278" width="190" height="38" rx="19" fill="#16233A" stroke="#334155"/>
+  <text x="591" y="303" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="18" fill="#5EEAD4">WebM · MP4 · GIF</text>
+
+  <rect x="710" y="278" width="258" height="38" rx="19" fill="#16233A" stroke="#334155"/>
+  <text x="839" y="303" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="18" fill="#5EEAD4">100% local — zero cloud</text>
+
+  <!-- bottom accent -->
+  <rect x="0" y="316" width="1200" height="4" fill="url(#cd-badge)"/>
+</svg>
