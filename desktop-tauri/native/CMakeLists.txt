@@ -8,6 +8,11 @@
 # Linux builds are transcode/export capable (capture is Windows-only in v2 alpha).
 
 cmake_minimum_required(VERSION 3.21)
+# Static CRT (/MT) — the engine ships self-contained with ZERO companion
+# DLLs, so it must not import msvcp140/vcruntime140. This matches the
+# x64-windows-static triplet's CRT linkage and must be decided before any
+# target is created (CMP0091 NEW default since cmake 3.15).
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 project(capturedesk-engine CXX)
 
 # C++20: C++/WinRT (Windows.Graphics.Capture) requires <coroutine>; MSVC
