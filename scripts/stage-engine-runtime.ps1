@@ -111,6 +111,13 @@ function Stage-Dll([string]$Name) {
     throw "MSVC CRT DLL '$Name' not found in System32 — cannot ship the engine runtime"
   }
 
+  # API Set virtual DLLs (api-ms-win-*, ext-ms-*): no file on disk anywhere —
+  # the loader resolves them through the API Set schema. Always OS-provided.
+  if ($lower -match '^(api-ms-win|ext-ms)-') {
+    Write-Host "  = $Name  (API set, loader-resolved)"
+    return
+  }
+
   $src32 = Join-Path "$env:SystemRoot\System32" $Name
   if (Test-Path $src32) {
     Write-Host "  = $Name  (OS component, skipped)"
