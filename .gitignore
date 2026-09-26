@@ -14,3 +14,10 @@ Thumbs.db
 # CaptureDesk v2 native stack — Rust/Tauri build artifacts
 desktop-tauri/src-tauri/target/
 desktop-tauri/src-tauri/gen/
+
+# Local environment & internal tooling — never commit
+.env
+.env.*
+skills/
+tool-results/
+agent-ctx/
