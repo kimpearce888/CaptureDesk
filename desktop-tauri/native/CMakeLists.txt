@@ -17,14 +17,43 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(nlohmann_json CONFIG REQUIRED)
 
-# FFmpeg detection — two supported layouts:
-#   1. pkg-config (Linux / system installs: libavcodec-dev, ...)
-#   2. vcpkg's unofficial-ffmpeg CMake config (Windows CI and dev)
-# Non-REQUIRED pkg_check_modules keeps Windows flowing to fallback (2).
-find_package(PkgConfig QUIET)
-if(PKG_CONFIG_FOUND)
-  pkg_check_modules(FFMPEG IMPORTED_TARGET
-    libavcodec libavformat libavutil libswscale libswresample)
+# FFmpeg detection — three supported layouts, tried in order:
+#   1. vcpkg's find_package(FFMPEG) integration (Windows CI and dev; the
+#      ffmpeg 9.x port ships a vcpkg-cmake-wrapper that defines
+#      FFMPEG_INCLUDE_DIRS / FFMPEG_LIBRARIES including all transitive
+#      system deps of the static build)
+#   2. pkg-config (Linux / system installs: libavcodec-dev, ...)
+#   3. unofficial::ffmpeg::* imported targets (older vcpkg ffmpeg ports)
+find_package(FFMPEG QUIET)
+set(CAPTUREDESK_FFMPEG_LIB "")
+set(CAPTUREDESK_FFMPEG_INCLUDE_DIRS "")
+if(FFMPEG_FOUND)
+  set(CAPTUREDESK_FFMPEG_INCLUDE_DIRS ${FFMPEG_INCLUDE_DIRS})
+  set(CAPTUREDESK_FFMPEG_LIB ${FFMPEG_LIBRARIES})
+  message(STATUS "FFMPEG: via find_package — ${CAPTUREDESK_FFMPEG_LIB}")
+endif()
+
+if(NOT CAPTUREDESK_FFMPEG_LIB)
+  find_package(PkgConfig QUIET)
+  if(PKG_CONFIG_FOUND)
+    pkg_check_modules(FFMPEG IMPORTED_TARGET
+      libavcodec libavformat libavutil libswscale libswresample)
+    if(TARGET PkgConfig::FFMPEG)
+      set(CAPTUREDESK_FFMPEG_LIB PkgConfig::FFMPEG)
+      set(CAPTUREDESK_FFMPEG_PKGCONFIG TRUE)
+      message(STATUS "FFMPEG: via pkg-config")
+    endif()
+  endif()
+endif()
+
+if(NOT CAPTUREDESK_FFMPEG_LIB)
+  set(CAPTUREDESK_FFMPEG_LIB
+    unofficial::ffmpeg::avcodec
+    unofficial::ffmpeg::avformat
+    unofficial::ffmpeg::avutil
+    unofficial::ffmpeg::swscale
+    unofficial::ffmpeg::swresample)
+  message(STATUS "FFMPEG: via unofficial::ffmpeg:: targets")
 endif()
 
 add_executable(capturedesk-engine
@@ -34,19 +63,8 @@ add_executable(capturedesk-engine
   src/transcode.cpp
 )
 
-target_include_directories(capturedesk-engine PRIVATE include)
-
-set(CAPTUREDESK_FFMPEG_LIB "")
-if(TARGET PkgConfig::FFMPEG)
-  set(CAPTUREDESK_FFMPEG_LIB PkgConfig::FFMPEG)
-else()
-  set(CAPTUREDESK_FFMPEG_LIB
-    unofficial::ffmpeg::avcodec
-    unofficial::ffmpeg::avformat
-    unofficial::ffmpeg::avutil
-    unofficial::ffmpeg::swscale
-    unofficial::ffmpeg::swresample)
-endif()
+target_include_directories(capturedesk-engine PRIVATE
+  include ${CAPTUREDESK_FFMPEG_INCLUDE_DIRS})
 
 target_link_libraries(capturedesk-engine PRIVATE ${CAPTUREDESK_FFMPEG_LIB}
                                                  nlohmann_json::nlohmann_json)
@@ -57,7 +75,8 @@ target_link_libraries(capturedesk-engine PRIVATE ${CAPTUREDESK_FFMPEG_LIB}
 option(CAPTUREDESK_BUILD_TESTS "Build the encoder test harness" OFF)
 if(CAPTUREDESK_BUILD_TESTS)
   add_executable(capturedesk-encode-test tests/encode_harness.cpp src/encoder.cpp)
-  target_include_directories(capturedesk-encode-test PRIVATE src include)
+  target_include_directories(capturedesk-encode-test PRIVATE
+    src include ${CAPTUREDESK_FFMPEG_INCLUDE_DIRS})
   target_link_libraries(capturedesk-encode-test PRIVATE
     nlohmann_json::nlohmann_json ${CAPTUREDESK_FFMPEG_LIB})
 endif()
