@@ -262,6 +262,9 @@ jobs:
             the bubble shows a graceful "camera unavailable" state.
           - Region capture covers the primary display; full-screen/window capture covers
             every display.
+          - Area selection shows a frozen snapshot of your desktop and always stays
+            escapable: Esc, Alt+F4, the Cancel pill, or simply clicking another app
+            dismisses the overlay at any time.
           EOF
           sed -i "s/__CD_TAG__/${TAG_NAME}/g" RELEASE_NOTES.md
           head -1 RELEASE_NOTES.md
