@@ -131,6 +131,14 @@ jobs:
           if [ -f desktop-tauri/target/release/WebView2Loader.dll ]; then
             cp desktop-tauri/target/release/WebView2Loader.dll build/stage/
           fi
+          # App-local MSVC CRT: the Rust shell links vcruntime140 dynamically,
+          # and machines without the VC++ redistributable would otherwise fail
+          # to start the app at all. Harmless when the redist is present.
+          for crt in msvcp140.dll vcruntime140.dll vcruntime140_1.dll; do
+            if [ -f "/c/Windows/System32/$crt" ]; then
+              cp "/c/Windows/System32/$crt" build/stage/
+            fi
+          done
           ls -la build/stage
 
       # ---- NSIS installer ---------------------------------------------------

@@ -95,6 +95,14 @@ mkdir -p build/stage dist
 cp "$APPBIN" build/stage/CaptureDesk.exe
 [ -f desktop-tauri/src-tauri/target/release/WebView2Loader.dll ] && \
   cp desktop-tauri/src-tauri/target/release/WebView2Loader.dll build/stage/
+# App-local MSVC CRT for the shell (same rationale as the engine stage).
+case "$APPBIN" in
+  *.exe)
+    for crt in msvcp140.dll vcruntime140.dll vcruntime140_1.dll; do
+      [ -f "/c/Windows/System32/$crt" ] && cp -f "/c/Windows/System32/$crt" build/stage/
+    done
+    ;;
+esac
 
 if command -v makensis >/dev/null 2>&1 || [ -x tools/nsis/usr/bin/makensis ]; then
   MAKEN="$(command -v makensis || echo tools/nsis/usr/bin/makensis)"
