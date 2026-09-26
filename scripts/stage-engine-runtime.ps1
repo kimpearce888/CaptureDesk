@@ -61,15 +61,14 @@ function Find-Dumpbin {
 }
 
 function Get-Imports([string]$Binary, [string]$Dumpbin) {
-  $out = (& $Dumpbin -DEPENDENTS $Binary 2>$null | Out-String)
+  # Capture stderr too: a dumpbin failure must not look like "zero imports".
+  $out = (& $Dumpbin -DEPENDENTS $Binary 2>&1 | Out-String)
   $names = @()
-  $in = $false
-  # -split takes a REGEX: CRLF or LF line endings, optional CR.
+  # Format-agnostic: every dependency dumpbin prints is a 2+ space indented
+  # line ending in a .dll name (the Summary section lists .text/.data etc.,
+  # never .dll). No dependence on header wording across MSVC versions.
   foreach ($line in ($out -split '\r?\n')) {
-    if ($line -match 'dependencies:') { $in = $true; continue }
-    if ($in -and $line -match '^\s{4,}(\S+\.dll)\s*$') { $names += $Matches[1].ToLower(); continue }
-    if ($in -and $line -match '^\s*$') { $in = $false; continue }
-    if ($line -match '^\s*Summary') { $in = $false }
+    if ($line -match '^\s{2,}(\S+\.dll)\s*$') { $names += $Matches[1].ToLower() }
   }
   return $names | Select-Object -Unique
 }
@@ -83,8 +82,9 @@ else {
 }
 
 $stage = $OutDir
-Copy-Item $EngineExe $stage -Force
-Write-Host "staged engine: $EngineExe"
+$EngineAbs = (Resolve-Path $EngineExe).Path
+Copy-Item $EngineAbs $stage -Force
+Write-Host "staged engine: $EngineAbs"
 
 $copied = New-Object 'System.Collections.Generic.HashSet[string]'
 $queue  = New-Object 'System.Collections.Generic.Queue[string]'
@@ -122,10 +122,12 @@ function Stage-Dll([string]$Name) {
 }
 
 if ($dumpbin) {
-  $engineImports = @(Get-Imports $EngineExe $dumpbin)
+  $engineImports = @(Get-Imports $EngineAbs $dumpbin)
   if ($engineImports.Count -eq 0) {
-    throw ("import-table parse of '{0}' returned no dependencies — refusing to stage. " +
-           "A PE executable always imports at least KERNEL32.dll, so this is a parser failure.") -f $EngineExe
+    $dbg = @(& $dumpbin -DEPENDENTS $EngineAbs 2>&1 | Out-String) -join "`n"
+    $head = (($dbg -split '\r?\n') | Select-Object -First 40) -join "`n"
+    throw ("import-table parse returned no dependencies (dumpbin exit {0}).`n" +
+           "--- dumpbin output (first 40 lines) ---`n{1}") -f $LASTEXITCODE, $head
   }
   Write-Host ("engine imports ({0}): {1}" -f $engineImports.Count, ($engineImports -join ', '))
   foreach ($dep in $engineImports) { $queue.Enqueue($dep) }
