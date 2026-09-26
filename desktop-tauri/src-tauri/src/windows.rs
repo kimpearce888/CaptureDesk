@@ -147,7 +147,8 @@ pub fn begin_region(app: &AppHandle) -> Value {
         let encoded = percent_encoding::utf8_percent_encode(
             &shot_param,
             percent_encoding::NON_ALPHANUMERIC,
-        );
+        )
+        .to_string();
         url.push_str("&shot=");
         url.push_str(&encoded);
     }
@@ -268,11 +269,14 @@ pub fn cancel_region(app: &AppHandle) {
 /// a notification): give it a short grace period, then cancel so the
 /// overlay can never sit on top of the desktop while the user works.
 pub fn on_region_blur(app: &AppHandle) {
+    // Bind the locked value first: tail-expression temporaries (the mutex
+    // guard) would otherwise outlive the `State` guard below (E0597).
     let grace_ok = {
         let st = app.state::<crate::state::AppState>();
-        match *st.region_shown_at.lock().unwrap() {
-            Some(t) if t.elapsed() < Duration::from_millis(1500) => false,
-            _ => true,
+        let shown_at = *st.region_shown_at.lock().unwrap();
+        match shown_at {
+            Some(t) => t.elapsed() >= Duration::from_millis(1500),
+            None => true,
         }
     };
     if grace_ok {
