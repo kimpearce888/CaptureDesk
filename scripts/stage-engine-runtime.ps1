@@ -1,37 +1,50 @@
 <#
-CaptureDesk — stage the engine executable with its complete runtime DLL
-closure (pipeline helper for release.yml / ci.yml / release-v2.sh).
+CaptureDesk — verify the engine executable's runtime import closure
+(pipeline helper for release.yml / ci.yml / release-v2.sh).
 
-Why this exists: the engine links FFmpeg through vcpkg's dynamic triplet, so
-on a clean user machine it needs avformat/avcodec/avutil/swscale/swresample
-(+ their own transitive dependencies) and the MSVC CRT DLLs next to the exe.
-The Windows loader searches the exe's own folder first, so staging there is
-sufficient — and missing DLLs surface at launch as "The code execution
-cannot proceed because avformat-63.dll was not found".
+Why this exists: the engine used to link FFmpeg through vcpkg's dynamic
+triplet, so on a clean user machine it needed avformat/avcodec/avutil/swscale/
+swresample (+ their transitive dependencies) and the MSVC CRT DLLs next to the
+exe; missing DLLs surfaced at launch as "The code execution cannot proceed
+because avformat-63.dll was not found". The engine now uses the vcpkg
+x64-windows-static triplet (FFmpeg, x264, opus and the CRT baked INTO the exe),
+so the shipped engine needs ZERO companion DLLs. This script remains as the
+packaging regression guard:
 
-Usage:
-  pwsh scripts/stage-engine-runtime.ps1 -EngineExe <path> -VcpkgBin <dir> -OutDir <dir>
-
-Behaviour:
-  - copies the engine exe into OutDir
   - walks the import table recursively via dumpbin (VS auto-detected)
-  - DLLs found in VcpkgBin            -> copied from there, then recursed
-  - MSVC CRT (msvcp*/vcruntime*/concrt*) -> copied app-local from System32
+  - DLLs found in VcpkgBin            -> staged (copied) when not self-contained
+  - MSVC CRT (msvcp*/vcruntime*/concrt*) -> staged app-local when not self-contained
   - anything resolvable from System32 -> treated as an OS component, skipped
+  - API set virtual DLLs (api-ms-win-*, ext-ms-*) -> loader-resolved, skipped
   - anything else                     -> HARD FAIL (packaging regression guard)
+  - with -RequireSelfContained (CI + release), ANY import that would demand a
+    companion DLL is itself a HARD FAIL — the engine must stay self-contained.
   - if dumpbin is unavailable, falls back to copying every DLL in VcpkgBin
     (provably complete superset) + the CRT files
+
+Usage:
+  pwsh scripts/stage-engine-runtime.ps1 -EngineExe <path> -VcpkgBin <dir> -OutDir <dir> [-RequireSelfContained]
 #>
 param(
   [Parameter(Mandatory = $true)][string]$EngineExe,
   [Parameter(Mandatory = $true)][string]$VcpkgBin,
-  [Parameter(Mandatory = $true)][string]$OutDir
+  [Parameter(Mandatory = $true)][string]$OutDir,
+  [switch]$RequireSelfContained
 )
 
 $ErrorActionPreference = 'Stop'
 
 if (-not (Test-Path $EngineExe)) { throw "engine exe not found: $EngineExe" }
-if (-not (Test-Path $VcpkgBin))  { throw "vcpkg bin dir not found: $VcpkgBin" }
+
+# The static triplet does not produce a DLL bin dir — tolerate its absence.
+# Any import that would have needed it still hard-fails below.
+if (Test-Path $VcpkgBin) {
+  $VcpkgBinPresent = $true
+}
+else {
+  $VcpkgBinPresent = $false
+  Write-Warning "vcpkg bin dir not found: $VcpkgBin (expected for the static triplet)"
+}
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
@@ -93,15 +106,26 @@ function Stage-Dll([string]$Name) {
   $lower = $Name.ToLower()
   if (-not $copied.Add($lower)) { return }   # already processed
 
-  $fromVcpkg = Join-Path $VcpkgBin $Name
-  if (Test-Path $fromVcpkg) {
-    Copy-Item $fromVcpkg $stage -Force
-    Write-Host "  + $Name  (vcpkg)"
-    foreach ($dep in (Get-Imports $fromVcpkg $dumpbin)) { $queue.Enqueue($dep) }
-    return
+  if ($VcpkgBinPresent) {
+    $fromVcpkg = Join-Path $VcpkgBin $Name
+    if (Test-Path $fromVcpkg) {
+      if ($RequireSelfContained) {
+        throw ("engine is not self-contained: it imports '{0}', a DLL from the " +
+               "vcpkg bin dir. FFmpeg must stay statically linked " +
+               "(VCPKG_TARGET_TRIPLET=x64-windows-static).") -f $Name
+      }
+      Copy-Item $fromVcpkg $stage -Force
+      Write-Host "  + $Name  (vcpkg)"
+      foreach ($dep in (Get-Imports $fromVcpkg $dumpbin)) { $queue.Enqueue($dep) }
+      return
+    }
   }
 
   if ($CrtDlls -contains $lower) {
+    if ($RequireSelfContained) {
+      throw ("engine is not self-contained: it imports the dynamic CRT DLL " +
+             "'{0}'. Build against the static CRT (x64-windows-static).") -f $Name
+    }
     $src32 = Join-Path "$env:SystemRoot\System32" $Name
     if (Test-Path $src32) {
       Copy-Item $src32 $stage -Force
@@ -141,9 +165,16 @@ if ($dumpbin) {
   while ($queue.Count -gt 0) { Stage-Dll ($queue.Dequeue()) }
 }
 else {
-  # Superset fallback: every non-OS dependency of the engine or of any vcpkg
-  # DLL lives in the vcpkg bin dir by construction of the dynamic triplet.
-  Copy-Item (Join-Path $VcpkgBin '*.dll') $stage -Force
+  # Superset fallback (dumpbin unavailable): every non-OS dependency of the
+  # engine or of any vcpkg DLL lives in the vcpkg bin dir by construction of
+  # the dynamic triplet. In self-contained mode we cannot verify the import
+  # table — fail loudly instead of shipping an unverifiable engine.
+  if ($RequireSelfContained) {
+    throw "dumpbin not found: cannot verify that the engine is self-contained"
+  }
+  if ($VcpkgBinPresent) {
+    Copy-Item (Join-Path $VcpkgBin '*.dll') $stage -Force
+  }
   foreach ($c in $CrtDlls) {
     $src32 = Join-Path "$env:SystemRoot\System32" $c
     if (Test-Path $src32) { Copy-Item $src32 $stage -Force }
@@ -152,7 +183,13 @@ else {
 
 Write-Host ""
 $copiedCount = @(Get-ChildItem $stage -Filter '*.dll').Count
-if ($dumpbin -and $copiedCount -eq 0) {
+if ($RequireSelfContained) {
+  if ($copiedCount -gt 0) {
+    throw "self-contained engine expected 0 companion DLLs, staged $copiedCount"
+  }
+  Write-Host "engine is SELF-CONTAINED: every import resolves from the OS — no companion DLLs to ship"
+}
+elseif ($dumpbin -and $copiedCount -eq 0) {
   throw "no DLLs were staged — the engine would launch without its FFmpeg runtime"
 }
 Write-Host "engine stage ready ($copiedCount DLLs + 1 exe):"

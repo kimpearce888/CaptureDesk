@@ -52,15 +52,61 @@ fn engine_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(res.join("engine").join(name))
 }
 
+/// Windows-only preflight: verify the OS components the engine dynamically
+/// links are actually present BEFORE spawning it.
+///
+/// The engine is statically linked (FFmpeg + CRT baked in), but it still uses
+/// OS-provided DLLs. On Windows 10/11 **N editions** the Media Foundation
+/// family (mfplat/mfreadwrite/mf) is absent unless the user installs the
+/// Media Feature Pack — without this check the user would get three cryptic
+/// "…dll was not found" loader dialogs at recording start instead of one
+/// readable explanation.
+#[cfg(windows)]
+fn os_preflight() -> Result<(), String> {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn LoadLibraryW(lpfilename: *const u16) -> isize;
+        fn FreeLibrary(hlibmodule: isize) -> i32;
+    }
+    const REQUIRED: &[(&str, &str)] = &[
+        ("mfplat.dll", "Media Foundation core"),
+        ("mfreadwrite.dll", "Media Foundation reader/writer"),
+        ("mf.dll", "Media Foundation topologies"),
+        ("d3d11.dll", "Direct3D 11"),
+        ("dwmapi.dll", "Desktop Window Manager"),
+    ];
+    for (dll, what) in REQUIRED {
+        let wide: Vec<u16> = dll.encode_utf16().chain(std::iter::once(0)).collect();
+        let h = unsafe { LoadLibraryW(wide.as_ptr()) };
+        if h == 0 {
+            return Err(format!(
+                "Windows is missing {what} ({dll}). On Windows 10/11 N editions, \
+                 install the Media Feature Pack: Settings → Apps → Optional features \
+                 → Add an optional feature → “Media Feature Pack”, then restart CaptureDesk."
+            ));
+        }
+        unsafe { FreeLibrary(h) };
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn os_preflight() -> Result<(), String> {
+    Ok(())
+}
+
 /// Spawn the engine sidecar and start the reader thread.
 pub fn spawn(app: &AppHandle) -> Result<(), String> {
+    os_preflight()?;
     let exe = engine_path(app)?;
     if !exe.exists() {
-        eprintln!(
-            "[CaptureDesk] engine sidecar missing at {} — capture and export commands will fail",
+        // Loud, actionable failure — the UI surfaces this via the rec-state
+        // error snapshot instead of capture commands failing with the vague
+        // "engine is not running" later.
+        return Err(format!(
+            "The CaptureDesk engine is missing at {}. Reinstall CaptureDesk to restore capture and export.",
             exe.display()
-        );
-        return Ok(());
+        ));
     }
     let mut cmd = Command::new(&exe);
     cmd.stdin(Stdio::piped())
@@ -126,6 +172,13 @@ fn reader_loop(stdout: ChildStdout, app: AppHandle) {
                 let _ = tx.send(v);
             }
         }
+    }
+    // The engine died (crash, AV quarantine, manual kill). Drop the stdin
+    // slot so later requests fail fast with "engine is not running" instead
+    // of hanging until their timeout on a dead pipe.
+    {
+        let st = app.state::<EngineHandle>();
+        *st.stdin.lock().unwrap() = None;
     }
     eprintln!("[CaptureDesk] engine exited");
     let _ = app.emit(

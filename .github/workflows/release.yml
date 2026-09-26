@@ -34,8 +34,11 @@ jobs:
           workspaces: desktop-tauri/src-tauri
 
       # ---- C++ engine -----------------------------------------------------
+      # x64-windows-static links FFmpeg/x264/opus and the CRT INTO the engine
+      # exe. The installed engine needs ZERO companion DLLs — this eliminates
+      # the whole "avformat-63.dll was not found" failure class at the root.
       - name: Install engine deps (vcpkg)
-        run: vcpkg install nlohmann-json ffmpeg[x264,vpx,opus] --triplet x64-windows
+        run: vcpkg install nlohmann-json ffmpeg[x264,vpx,opus] --triplet x64-windows-static
         env:
           VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
           GITHUB_TOKEN: ${{ github.token }}
@@ -45,7 +48,7 @@ jobs:
           cmake -S desktop-tauri/native -B desktop-tauri/native/build `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static
 
       - name: Build engine
         run: cmake --build desktop-tauri/native/build --config Release --parallel
@@ -67,18 +70,18 @@ jobs:
           find desktop-tauri/native/build -name '*.exe' 2>/dev/null || true
           exit 1
 
-      # The engine links vcpkg's dynamic FFmpeg (avformat-63.dll et al.) and
-      # the MSVC CRT. Without app-local copies a clean user machine fails at
-      # launch: "avformat-63.dll was not found". Stage the exact import
-      # closure next to the engine exe — the script HARD-FAILS on any
-      # unresolved import, so this doubles as the packaging regression guard.
-      - name: Stage engine runtime DLLs (FFmpeg + CRT closure)
+      # The engine is statically linked (FFmpeg + CRT baked in). This step now
+      # acts as the packaging regression guard: it hard-fails if the engine
+      # ever imports a DLL that is not an OS component, so a silent regression
+      # to dynamic FFmpeg can never reach users again.
+      - name: Verify engine import closure (self-contained check)
         shell: pwsh
         run: |
           ./scripts/stage-engine-runtime.ps1 `
             -EngineExe "$env:ENGINE_PATH" `
-            -VcpkgBin "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin" `
-            -OutDir build/engine-stage
+            -VcpkgBin "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows-static/bin" `
+            -OutDir build/engine-stage `
+            -RequireSelfContained
 
       # ---- C# native messaging host ---------------------------------------
       - name: Publish native host (single-file, self-contained)
@@ -128,9 +131,16 @@ jobs:
             exit 1
           fi
           cp "$BIN" build/stage/CaptureDesk.exe
-          if [ -f desktop-tauri/target/release/WebView2Loader.dll ]; then
-            cp desktop-tauri/target/release/WebView2Loader.dll build/stage/
-          fi
+          # WebView2Loader.dll (only needed when the loader is dynamically
+          # linked): check BOTH cargo target-dir layouts — the binary lives in
+          # src-tauri/target/release on default Tauri 2 workspaces.
+          for wv in desktop-tauri/src-tauri/target/release/WebView2Loader.dll \
+                    desktop-tauri/target/release/WebView2Loader.dll; do
+            if [ -f "$wv" ]; then
+              cp "$wv" build/stage/
+              break
+            fi
+          done
           # App-local MSVC CRT: the Rust shell links vcruntime140 dynamically,
           # and machines without the VC++ redistributable would otherwise fail
           # to start the app at all. Harmless when the redist is present.
@@ -243,20 +253,30 @@ jobs:
 
           ## Install
           1. Run `CaptureDeskSetup.exe` (per-user install; registers the native messaging
-             host and the `capturedesk://` handler; ships the C++ engine sidecar with
-             its FFmpeg runtime DLLs app-local — no system FFmpeg installation needed).
-          2. Load the extension: unzip `CaptureDesk-Chrome-Extension.zip` and use
-             chrome://extensions → Developer mode → *Load unpacked*.
-          3. The extension talks to the desktop app through the native host. The stable
-             extension ID is baked into the host manifest at install time.
+             host and the `capturedesk://` handler; the C++ engine ships **self-contained**
+             — FFmpeg, x264, opus and the runtime are statically linked INTO the engine,
+             so there are no FFmpeg/system DLL requirements and no
+             “avformat-63.dll was not found”-style errors).
+          2. Load the extension: unzip `CaptureDesk-Chrome-Extension.zip` — you get a
+             folder that directly contains `manifest.json` — then use
+             chrome://extensions → Developer mode → *Load unpacked* → select that folder.
+          3. The extension records standalone (saves to `Downloads/CaptureDesk/`). When
+             the desktop app is installed and running, its native messaging host receives
+             the recording into the desktop library instead — the popup footer shows which
+             destination is active. The stable extension ID is baked into the host manifest
+             at install time.
 
           ## Verification
           - SHA-256 checksums: `checksums.txt`.
           - Engine encode pipelines (WebM/MP4/GIF) and host protocol ping are exercised
-            in CI on every push.
+            in CI on every push; CI additionally verifies the engine's import table is
+            fully self-contained (zero companion DLLs).
 
           ## Notes
           - Windows 10/11 x64; WebView2 runtime required (preinstalled on updated systems).
+            Windows **N editions** need the free Media Feature Pack (Settings → Apps →
+            Optional features) for the recording engine — CaptureDesk detects this and
+            shows a readable message instead of cryptic DLL errors.
           - Recordings and exports are always written locally. Nothing leaves the device.
           - The camera bubble needs webcam permission; if the camera is busy elsewhere
             the bubble shows a graceful "camera unavailable" state.
@@ -265,6 +285,9 @@ jobs:
           - Area selection shows a frozen snapshot of your desktop and always stays
             escapable: Esc, Alt+F4, the Cancel pill, or simply clicking another app
             dismisses the overlay at any time.
+          - Extension trouble? See the troubleshooting table in
+            `extension/README.md` inside the zip (manifest-folder selection, service
+            worker reload, native-host status).
           EOF
           sed -i "s/__CD_TAG__/${TAG_NAME}/g" RELEASE_NOTES.md
           head -1 RELEASE_NOTES.md

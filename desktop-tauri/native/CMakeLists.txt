@@ -69,6 +69,10 @@ if(WIN32)
   )
   target_compile_definitions(capturedesk-engine PRIVATE
     NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+  # FFmpeg is linked statically (vcpkg x64-windows-static): avformat's network
+  # layer pulls in Winsock/crypto symbols that the dynamic DLLs used to hide.
+  # These are Windows SDK import libraries — always present, harmless if the
+  # vcpkg targets already provide the same transitive requirements.
   target_link_libraries(capturedesk-engine PRIVATE
     windowsapp   # C++/WinRT (Windows.Graphics.Capture)
     d3d11 dxgi   # frame staging
@@ -76,6 +80,7 @@ if(WIN32)
     ole32        # WASAPI / COM
     mf mfplat mfreadwrite mfuuid  # Media Foundation camera
     windowscodecs # WIC PNG encode for source thumbnails
+    ws2_32 secur32 bcrypt advapi32 # static FFmpeg system deps (winsock/crypto/registry)
   )
 endif()
 

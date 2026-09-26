@@ -16,7 +16,9 @@ CaptureDesk has two stacks in this repository:
 - Node.js 18+ (used for the Tauri CLI and the extension bundle)
 - .NET 8 SDK (C# native messaging host)
 - C++ toolchain: MSVC + [vcpkg] with `nlohmann-json ffmpeg[x264,vpx,opus]`
-  (`x64-windows` triplet) — or on Linux: `nlohmann-json3-dev libavformat-dev
+  (`x64-windows-static` triplet — FFmpeg, x264, opus and the CRT are linked
+  statically INTO the engine, so the shipped exe needs no companion DLLs) —
+  or on Linux: `nlohmann-json3-dev libavformat-dev
   libavcodec-dev libavutil-dev libswscale-dev libswresample-dev pkg-config
   cmake g++` (transcode/export only; screen capture is Windows-only)
 - CMake 3.21+

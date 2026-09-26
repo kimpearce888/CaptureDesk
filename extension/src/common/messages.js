@@ -36,6 +36,7 @@ export const MSG = {
 
   // popup/options -> service worker
   OPTIONS_CHANGED: 'cd:options-changed', // payload: {patch}
+  PROBE_NATIVE: 'cd:probe-native', // popup -> service worker: is the native host reachable?
 
   // --- internal helpers (not part of the public popup contract) ---
 

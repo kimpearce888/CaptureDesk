@@ -65,16 +65,22 @@ always yours.
 1. **Install the desktop app** — download `CaptureDeskSetup.exe` from the
    [latest release](../../releases/latest) and run it. It's a per-user
    install (no admin rights needed) that sets up the C++ engine, the native
-   messaging host and the `capturedesk://` handler.
+   messaging host and the `capturedesk://` handler. The engine ships with
+   FFmpeg statically linked — **no system FFmpeg, no runtime DLLs**.
 2. **Load the Chrome extension** — download
-   `CaptureDesk-Chrome-Extension.zip`, unzip it, then open
-   `chrome://extensions` → enable *Developer mode* → *Load unpacked*.
+   `CaptureDesk-Chrome-Extension.zip`, unzip it (you get a
+   `capturedesk-chrome-extension` folder containing `manifest.json`), then
+   open `chrome://extensions` → enable *Developer mode* → *Load unpacked* →
+   **select that folder**.
 3. **Record** — click the CaptureDesk icon in Chrome (or launch the desktop
    app), pick a capture mode, press **Start Recording**.
 
 > 💡 Verify your download with `checksums.txt` (SHA-256) from the same
-> release page. Windows 10/11 x64; the WebView2 runtime is required and
-> preinstalled on updated systems.
+> release page. If you see "…dll was not found" or a stuck download, you are
+> running an **older** installer — uninstall it, re-download the current
+> `CaptureDeskSetup.exe`, and confirm its SHA-256 matches `checksums.txt`.
+> Windows 10/11 x64; the WebView2 runtime is required and preinstalled on
+> updated systems (N editions need the free Media Feature Pack).
 
 ## Under the hood
 

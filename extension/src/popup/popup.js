@@ -29,6 +29,7 @@ const els = {
   savedCard: document.getElementById('savedCard'),
   savedName: document.getElementById('savedName'),
   footerFolder: document.getElementById('footerFolder'),
+  footerDesktop: document.getElementById('openDesktop'),
 };
 
 let current = { state: 'idle' }; // Last known session snapshot.
@@ -165,6 +166,8 @@ function render() {
 
 /**
  * Fetch the latest session snapshot from the service worker and re-render.
+ * A silent failure here used to look like "the extension does nothing": the
+ * popup now reports an explicit, actionable error instead.
  * @returns {Promise<void>}
  */
 async function refresh() {
@@ -174,10 +177,20 @@ async function refresh() {
       current = res.state;
       if (res.version) els.versionChip.textContent = `v${res.version}`;
     }
+    render();
   } catch (_) {
+    // The service worker did not answer at all: broken module, removed and
+    // re-added extension (stale popup), or Chrome killed it mid-load.
     current = { state: 'idle' };
+    render();
+    els.statusLine.hidden = false;
+    els.statusLine.classList.add('is-error');
+    els.statusLine.classList.remove('is-warning');
+    els.statusLine.textContent =
+      "CaptureDesk's background service is not responding. Open chrome://extensions, " +
+      'click the reload icon on the CaptureDesk card, then reopen this popup.';
+    els.startBtn.disabled = true;
   }
-  render();
 }
 
 /**
@@ -329,6 +342,31 @@ function applySettingsToControls(settings) {
   els.footerFolder.textContent = `Saved to Downloads/${sanitizeFolder(settings.folder)}`;
 }
 
+/**
+ * Diagnostics: check whether the CaptureDesk native messaging host is usable
+ * and reflect it in the footer. The extension records standalone either way —
+ * the native host only redirects saves into the desktop app's library.
+ * @returns {Promise<void>}
+ */
+async function probeNative() {
+  try {
+    const probe = await Promise.race([
+      chrome.runtime.sendMessage({ type: MSG.PROBE_NATIVE }),
+      new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
+    ]);
+    if (probe && probe.ok) {
+      els.footerDesktop.textContent = probe.native
+        ? 'Connected to CaptureDesk Desktop'
+        : 'Desktop app not connected — saves go to Downloads';
+      els.footerDesktop.title = probe.native
+        ? 'Recordings are saved into the CaptureDesk Desktop library via the native host.'
+        : 'Install (or reinstall) CaptureDeskSetup.exe and start the desktop app to save into its library. Recording to Downloads works without it.';
+    }
+  } catch (_) {
+    // Service worker unreachable — refresh() already surfaces that.
+  }
+}
+
 /** Wire every control to its handler. */
 function wireEvents() {
   els.modeSeg.addEventListener('click', (event) => {
@@ -380,6 +418,7 @@ async function init() {
     applySettingsToControls({});
   }
   await refresh();
+  void probeNative();
 }
 
 void init();

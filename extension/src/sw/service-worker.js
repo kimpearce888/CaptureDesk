@@ -628,6 +628,12 @@ async function dispatch(msg) {
       const settings = await setSettings(p.patch || p);
       return { ok: true, settings };
     }
+    case MSG.PROBE_NATIVE: {
+      // Popup diagnostics: is the CaptureDesk native host usable? Never
+      // throws; a dead/absent host simply means recordings save to Downloads.
+      const native = await tryOpenNativePort();
+      return { ok: true, native };
+    }
     case MSG.OVERLAY_READY:
       return { ok: true, config: overlayConfig || null };
     case MSG.INPUT:
@@ -648,6 +654,7 @@ const ASYNC_TYPES = new Set([
   MSG.STOP,
   MSG.CANCEL,
   MSG.OPTIONS_CHANGED,
+  MSG.PROBE_NATIVE,
   MSG.OVERLAY_READY,
   MSG.INPUT,
   MSG.NATIVE_CHUNK,

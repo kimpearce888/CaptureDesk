@@ -20,14 +20,29 @@ microphone, cursor & click highlights, instant local saving. 100% on-device.
 
 ## Install (Load unpacked)
 
-1. Open `chrome://extensions`.
-2. Enable **Developer mode** (top-right toggle).
-3. Click **Load unpacked** and select this `extension/` folder.
-4. Pin **CaptureDesk** from the toolbar, open the popup, choose a mode and
+1. Unzip `CaptureDesk-Chrome-Extension.zip` — you get a folder whose top
+   level contains `manifest.json` (if you see `src/` only, you picked one
+   level too deep or too shallow).
+2. Open `chrome://extensions`.
+3. Enable **Developer mode** (top-right toggle).
+4. Click **Load unpacked** and select **the folder that contains
+   `manifest.json`** (from the repo: this `extension/` folder).
+5. Pin **CaptureDesk** from the toolbar, open the popup, choose a mode and
    press **Start Recording**.
 
 No build step and no dependencies — plain HTML/CSS/JS (Manifest V3,
 Chrome/Chromium 116 or newer).
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| "Manifest file is missing or unreadable" when loading | You selected the wrong folder. Pick the folder that **directly contains `manifest.json`**. |
+| Popup says the background service is not responding | Open `chrome://extensions`, click the **reload** icon on the CaptureDesk card, then reopen the popup (this also happens after the extension was updated while the popup was open). |
+| Popup footer says "Desktop app not connected" | That is **not an error** — recordings save to `Downloads/CaptureDesk/`. Install/launch CaptureDesk Desktop (v2.0.0+) to save into its library instead. |
+| Record button does nothing on a `chrome://` page | Chrome forbids capturing browser pages. Switch to a normal `http(s)://` tab, or use Window/Screen mode. |
+| No sound in Window/Screen mode | Tick **Share audio** in Chrome's share picker; tab recordings always include tab audio. |
+| Recording saved under the wrong name | Duplicate names are auto-numbered; check `Downloads/CaptureDesk/`. |
 
 ## Permissions
 

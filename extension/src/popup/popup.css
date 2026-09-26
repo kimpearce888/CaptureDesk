@@ -285,3 +285,11 @@ select:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 1px;
 }
 .muted { color: var(--slate-400); font-size: 12px; }
 .hint { cursor: default; }
+/* Native-host status hint: longer text than the folder path, keep it tidy. */
+.hint {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55%;
+}

@@ -34,36 +34,25 @@ if [ -z "$ENGINE" ]; then
 fi
 echo "engine: $ENGINE"
 
-# Stage the engine TOGETHER with its runtime DLL closure (vcpkg FFmpeg +
-# MSVC CRT app-local) — the installed engine must run on machines without a
-# system-wide FFmpeg, otherwise users hit "avformat-63.dll was not found".
+# Verify the engine's runtime import closure. The engine is statically
+# linked (vcpkg x64-windows-static: FFmpeg + CRT baked in) so it ships with
+# ZERO companion DLLs; -RequireSelfContained makes any regression to dynamic
+# FFmpeg fail loudly here instead of hitting users as "…dll was not found".
 ENGINE_STAGE="build/engine-stage"
 mkdir -p "$ENGINE_STAGE"
 cp "$ENGINE" "$ENGINE_STAGE/"
 case "$ENGINE" in
   *.exe)
-    VCPKGBIN="${VCPKG_INSTALLATION_ROOT:-/c/vcpkg}/installed/x64-windows/bin"
-    [ -d "$VCPKGBIN" ] || VCPKGBIN="/c/vcpkg/installed/x64-windows/bin"
-    if [ -d "$VCPKGBIN" ]; then
-      if command -v powershell.exe >/dev/null 2>&1 && [ -f scripts/stage-engine-runtime.ps1 ]; then
-        # Precise closure via dumpbin; fall back to the (provably complete)
-        # whole-bin copy if the script cannot run for any reason.
-        if ! powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/stage-engine-runtime.ps1 \
-              -EngineExe "$(cygpath -w "$ENGINE_STAGE/capturedesk-engine.exe")" \
-              -VcpkgBin "$(cygpath -w "$VCPKGBIN")" \
-              -OutDir "$(cygpath -w "$PWD/$ENGINE_STAGE")"; then
-          echo "precise staging failed — copying the whole vcpkg bin dir instead" >&2
-          cp -f "$VCPKGBIN"/*.dll "$ENGINE_STAGE/"
-        fi
-      else
-        cp -f "$VCPKGBIN"/*.dll "$ENGINE_STAGE/"
-      fi
-      for crt in msvcp140.dll msvcp140_1.dll msvcp140_2.dll \
-                 vcruntime140.dll vcruntime140_1.dll concrt140.dll; do
-        [ -f "/c/Windows/System32/$crt" ] && cp -f "/c/Windows/System32/$crt" "$ENGINE_STAGE/"
-      done
+    VCPKGBIN="${VCPKG_INSTALLATION_ROOT:-/c/vcpkg}/installed/x64-windows-static/bin"
+    [ -d "$VCPKGBIN" ] || VCPKGBIN="/c/vcpkg/installed/x64-windows-static/bin"
+    if command -v powershell.exe >/dev/null 2>&1 && [ -f scripts/stage-engine-runtime.ps1 ]; then
+      powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/stage-engine-runtime.ps1 \
+            -EngineExe "$(cygpath -w "$ENGINE_STAGE/capturedesk-engine.exe")" \
+            -VcpkgBin "$(cygpath -w "$VCPKGBIN")" \
+            -OutDir "$(cygpath -w "$PWD/$ENGINE_STAGE")" \
+            -RequireSelfContained || exit 1
     else
-      echo "WARNING: vcpkg bin dir not found — engine will miss its FFmpeg DLLs" >&2
+      echo "WARNING: stage-engine-runtime.ps1 unavailable — skipping the self-contained verification" >&2
     fi
     ;;
 esac

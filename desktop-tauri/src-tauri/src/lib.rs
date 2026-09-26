@@ -81,7 +81,20 @@ pub fn run() {
             let handle = app.handle().clone();
             state::register_protocol(&handle)?;
             menu::install(&handle)?;
-            engine::spawn(&handle)?;
+            // Engine unavailability (missing Media Foundation on N editions,
+            // broken install, spawn failure) must not take the whole app
+            // down — surface it as a persistent error state the UI shows.
+            if let Err(e) = engine::spawn(&handle) {
+                eprintln!("[CaptureDesk] engine unavailable: {e}");
+                state::apply_engine_state(
+                    &handle,
+                    &serde_json::json!({
+                        "state": "error",
+                        "error": e,
+                        "note": "engine-unavailable",
+                    }),
+                );
+            }
             tray::create(&handle)?;
             shortcuts::register(&handle)?;
             windows::prepare(&handle)?;
