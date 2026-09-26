@@ -35,6 +35,11 @@ bool run_capture_session(
     const std::function<void(const std::string&, uint64_t)>& on_state,
     const std::function<void(uint64_t)>& on_tick);
 
+/// One-shot desktop screenshot (GDI BitBlt → WIC PNG) for the region
+/// picker backdrop. Params: {sourceId: "screen:N", out: <png path>}.
+/// Returns {ok, width, height, x, y} in physical pixels.
+json grab_screen_impl(const json& params);
+
 /// CPU compositor helpers (compositor.cpp) — operate on RGBA8888 buffers.
 namespace compose {
 

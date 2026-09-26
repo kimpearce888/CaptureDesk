@@ -194,8 +194,27 @@ pub fn region_begin(app: AppHandle) -> Value {
 #[tauri::command]
 pub fn region_selected(app: AppHandle, payload: Value) -> Value {
     let st = app.state::<crate::state::AppState>();
-    *st.pending_region.lock().unwrap() = Some(payload.clone());
+    // The engine expects a FLAT rect {x,y,width,height} (physical px), while
+    // the picker reports {displayId, rect:{…}} — store only the inner rect.
+    // Canceled picks clear the pending region instead of poisoning it (a
+    // later `rec_start(mode=region)` must not reuse a stale selection).
+    let canceled = payload
+        .get("canceled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || payload.get("rect").map(Value::is_null).unwrap_or(true);
+    if canceled {
+        *st.pending_region.lock().unwrap() = None;
+    } else {
+        let inner = payload.get("rect").cloned().unwrap_or(json!(null));
+        if inner.is_object() {
+            *st.pending_region.lock().unwrap() = Some(inner);
+        } else {
+            *st.pending_region.lock().unwrap() = None;
+        }
+    }
     crate::windows::end_region(&app);
+    // The dashboard only checks `canceled`; keep the full payload contract.
     let _ = app.emit("region-selected", payload);
     json!({ "ok": true })
 }

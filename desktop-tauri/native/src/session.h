@@ -30,6 +30,7 @@ private:
     json pause();
     json resume();
     json list_sources(const json& kinds);
+    json grab_screen(const json& params);
     json transcode(const json& spec, uint64_t id);
     json transcode_cancel();
 

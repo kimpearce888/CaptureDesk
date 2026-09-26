@@ -89,13 +89,28 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let app = window.app_handle();
-                if window.label() == "main" && settings::flag(app, "minimizeToTray", true) {
-                    // Keep CaptureDesk alive in the tray.
-                    api.prevent_close();
-                    let _ = window.hide();
+            let app = window.app_handle();
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    if window.label() == "main" && settings::flag(app, "minimizeToTray", true) {
+                        // Keep CaptureDesk alive in the tray.
+                        api.prevent_close();
+                        let _ = window.hide();
+                    } else if window.label() == "region" {
+                        // Alt+F4 (or a page window.close()) on the region
+                        // picker always cancels it — never a dead trap.
+                        windows::cancel_region(app);
+                    }
                 }
+                tauri::WindowEvent::Focused(false) => {
+                    if window.label() == "region" {
+                        // The picker lost focus (Alt-Tab, toast, …): cancel
+                        // after a short grace period so it can't hover on
+                        // top of the desktop while the user works elsewhere.
+                        windows::on_region_blur(app);
+                    }
+                }
+                _ => {}
             }
         })
         .run(tauri::generate_context!())

@@ -3,6 +3,7 @@
 
 use serde_json::{json, Value};
 use std::path::PathBuf;
+use std::sync::atomic::AtomicU64;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -48,6 +49,14 @@ pub struct AppState {
     pub pending_editor_file: Mutex<Option<String>>,
     /// Recordings dir already granted to the runtime asset-protocol scope.
     pub asset_scope_dir: Mutex<Option<PathBuf>>,
+    /// True while the region picker overlay is interactive. Guards the
+    /// canceled event so hide/close paths never double-emit.
+    pub region_active: Mutex<bool>,
+    /// Bumped on every `begin_region`; in-flight safety timers compare
+    /// against their captured epoch and exit when a newer picker opened.
+    pub region_epoch: AtomicU64,
+    /// When the current picker became visible (blur-cancel grace period).
+    pub region_shown_at: Mutex<Option<std::time::Instant>>,
 }
 
 impl AppState {
@@ -57,6 +66,9 @@ impl AppState {
             pending_region: Mutex::new(None),
             pending_editor_file: Mutex::new(None),
             asset_scope_dir: Mutex::new(None),
+            region_active: Mutex::new(false),
+            region_epoch: AtomicU64::new(0),
+            region_shown_at: Mutex::new(None),
         }
     }
 

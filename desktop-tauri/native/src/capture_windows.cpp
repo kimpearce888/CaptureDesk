@@ -690,6 +690,8 @@ std::string thumbnail_png_b64(RECT rc, HWND hwnd = nullptr) {
     } else {
         BitBlt(mem, 0, 0, w, h, screen, rc.left, rc.top, SRCCOPY);
     }
+    // GetDIBits requires the bitmap NOT to be selected into a DC (MSDN).
+    SelectObject(mem, old);
     BITMAPINFO bi{};
     bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bi.bmiHeader.biWidth = w;
@@ -699,7 +701,6 @@ std::string thumbnail_png_b64(RECT rc, HWND hwnd = nullptr) {
     bi.bmiHeader.biCompression = BI_RGB;
     std::vector<uint8_t> pixels(static_cast<size_t>(w) * h * 4);
     GetDIBits(mem, bmp, 0, h, pixels.data(), &bi, DIB_RGB_COLORS);
-    SelectObject(mem, old);
     DeleteObject(bmp);
     DeleteDC(mem);
     ReleaseDC(nullptr, screen);
@@ -709,8 +710,12 @@ std::string thumbnail_png_b64(RECT rc, HWND hwnd = nullptr) {
     std::vector<uint8_t> thumb(static_cast<size_t>(tw) * th * 4);
     for (int y = 0; y < th; ++y) {
         for (int x = 0; x < tw; ++x) {
-            std::memcpy(thumb.data() + (static_cast<size_t>(y) * tw + x) * 4,
+            uint8_t* dst = thumb.data() + (static_cast<size_t>(y) * tw + x) * 4;
+            std::memcpy(dst,
                         pixels.data() + (static_cast<size_t>(y * h / th) * w + x * w / tw) * 4, 4);
+            // GetDIBits yields BGRA; the WIC frame below is 32bppRGBA.
+            std::swap(dst[0], dst[2]);
+            dst[3] = 255;
         }
     }
 
@@ -767,6 +772,151 @@ bool is_cloaked(HWND hwnd) {
 }
 
 } // namespace
+
+/// One-shot desktop screenshot: GDI BitBlt of the requested monitor into a
+/// 32bpp DIB → WIC PNG file. Used by the region picker so the overlay shows
+/// a frozen copy of the desktop instead of relying on webview transparency
+/// (opaque-white on some GPU/WebView2 combinations — the v2.0.0 overlay bug).
+/// Runs BEFORE the picker window exists, so the overlay never appears in it.
+json grab_screen_impl(const json& params) {
+    const std::string source = params.value("sourceId", std::string("screen:0"));
+    const std::string out_path = params.value("out", std::string());
+    if (out_path.empty()) {
+        return json({{"ok", false}, {"error", "grab-screen needs an output path."}});
+    }
+
+    // Per-monitor-v2 thread DPI awareness: BitBlt/GetDIBits then operate in
+    // PHYSICAL pixels regardless of the system DPI. Resolved dynamically —
+    // the API needs Windows 10 1607+; the engine floor is 1903+ (WGC), but
+    // stay defensive and fall back to whatever the process already has.
+    using SetCtxFn = DPI_AWARENESS_CONTEXT(WINAPI*)(DPI_AWARENESS_CONTEXT);
+    const SetCtxFn set_ctx = reinterpret_cast<SetCtxFn>(GetProcAddress(
+        GetModuleHandleW(L"user32.dll"), "SetThreadDpiAwarenessContext"));
+    DPI_AWARENESS_CONTEXT old_ctx = nullptr;
+    if (set_ctx) {
+        old_ctx = set_ctx(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
+
+    auto fail = [&](const char* msg) {
+        if (set_ctx && old_ctx) set_ctx(old_ctx);
+        json r = {{"ok", false}, {"error", msg}};
+        return r;
+    };
+
+    HMONITOR hmon = nullptr;
+    struct Ctx {
+        int index = 0;
+        int want = 0;
+        HMONITOR hmon = nullptr;
+    } ctx;
+    if (source.rfind("screen:", 0) == 0) ctx.want = std::atoi(source.c_str() + 7);
+    EnumDisplayMonitors(
+        nullptr, nullptr,
+        [](HMONITOR hmon, HDC, LPRECT, LPARAM lp) -> BOOL {
+            auto* c = reinterpret_cast<Ctx*>(lp);
+            if (c->index++ == c->want) c->hmon = hmon;
+            return TRUE;
+        },
+        reinterpret_cast<LPARAM>(&ctx));
+    hmon = ctx.hmon;
+    if (!hmon) return fail("CaptureDesk could not find that display.");
+
+    MONITORINFO mi{sizeof(MONITORINFO)};
+    if (!GetMonitorInfoW(hmon, &mi)) return fail("CaptureDesk could not read the display info.");
+    const int w = mi.rcMonitor.right - mi.rcMonitor.left;
+    const int h = mi.rcMonitor.bottom - mi.rcMonitor.top;
+    if (w <= 0 || h <= 0) return fail("CaptureDesk read an invalid display size.");
+
+    HDC screen = GetDC(nullptr);
+    HDC mem = CreateCompatibleDC(screen);
+    HBITMAP bmp = CreateCompatibleBitmap(screen, w, h);
+    if (!screen || !mem || !bmp) {
+        if (bmp) DeleteObject(bmp);
+        if (mem) DeleteDC(mem);
+        if (screen) ReleaseDC(nullptr, screen);
+        return fail("CaptureDesk could not create the screenshot surfaces.");
+    }
+    HGDIOBJ old = SelectObject(mem, bmp);
+    const BOOL blit = BitBlt(mem, 0, 0, w, h, screen, mi.rcMonitor.left, mi.rcMonitor.top, SRCCOPY);
+    // GetDIBits requires the bitmap NOT to be selected into a DC (MSDN).
+    SelectObject(mem, old);
+
+    BITMAPINFO bi{};
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = w;
+    bi.bmiHeader.biHeight = -h; // top-down
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    std::vector<uint8_t> pixels(static_cast<size_t>(w) * h * 4);
+    const BOOL got = blit ? GetDIBits(mem, bmp, 0, h, pixels.data(), &bi, DIB_RGB_COLORS) : FALSE;
+    DeleteObject(bmp);
+    DeleteDC(mem);
+    ReleaseDC(nullptr, screen);
+    if (!got) return fail("CaptureDesk could not read the screen pixels.");
+
+    // GetDIBits yields BGRA byte order; WIC expects RGBA. Swap R/B in place.
+    for (size_t i = 0; i + 3 < pixels.size(); i += 4) {
+        std::swap(pixels[i], pixels[i + 2]);
+        pixels[i + 3] = 255;
+    }
+
+    // WIC PNG encode into an in-memory stream, then write to the output file
+    // (wide path — the temp dir may contain non-ANSI user names).
+    const int com_here = SUCCEEDED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
+    std::string bytes;
+    {
+        Microsoft::WRL::ComPtr<IWICImagingFactory> factory;
+        Microsoft::WRL::ComPtr<IStream> stream;
+        Microsoft::WRL::ComPtr<IWICBitmapEncoder> enc;
+        Microsoft::WRL::ComPtr<IWICBitmapFrameEncode> frame;
+        Microsoft::WRL::ComPtr<IPropertyBag2> props;
+        if (SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_ALL,
+                                       IID_PPV_ARGS(factory.GetAddressOf()))) &&
+            SUCCEEDED(CreateStreamOnHGlobal(nullptr, TRUE, stream.GetAddressOf())) &&
+            SUCCEEDED(factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, enc.GetAddressOf())) &&
+            SUCCEEDED(enc->Initialize(stream.Get(), WICBitmapEncoderNoCache)) &&
+            SUCCEEDED(enc->CreateNewFrame(frame.GetAddressOf(), props.GetAddressOf())) &&
+            SUCCEEDED(frame->Initialize(props.Get())) &&
+            SUCCEEDED(frame->SetSize(static_cast<UINT>(w), static_cast<UINT>(h)))) {
+            WICPixelFormatGUID fmt = GUID_WICPixelFormat32bppRGBA;
+            if (SUCCEEDED(frame->SetPixelFormat(&fmt)) &&
+                SUCCEEDED(frame->WritePixels(h, w * 4,
+                                             static_cast<UINT>(pixels.size()),
+                                             pixels.data())) &&
+                SUCCEEDED(frame->Commit()) && SUCCEEDED(enc->Commit())) {
+                HGLOBAL hg = nullptr;
+                if (SUCCEEDED(GetHGlobalFromStream(stream.Get(), &hg))) {
+                    const SIZE_T size = GlobalSize(hg);
+                    if (const uint8_t* p = static_cast<const uint8_t*>(GlobalLock(hg))) {
+                        bytes.assign(p, p + size);
+                        GlobalUnlock(hg);
+                    }
+                }
+            }
+        }
+    }
+    if (com_here) CoUninitialize();
+    if (bytes.empty()) return fail("CaptureDesk could not encode the screenshot.");
+
+    const int need = MultiByteToWideChar(CP_UTF8, 0, out_path.c_str(), -1, nullptr, 0);
+    if (need <= 0) return fail("CaptureDesk screenshot output path is invalid.");
+    std::wstring wpath(static_cast<size_t>(need - 1), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, out_path.c_str(), -1, wpath.data(), need);
+    std::ofstream file(wpath.c_str(), std::ios::binary | std::ios::trunc);
+    if (!file) return fail("CaptureDesk could not write the screenshot file.");
+    file.write(reinterpret_cast<const char*>(bytes.data()),
+               static_cast<std::streamsize>(bytes.size()));
+    file.close();
+    if (!file) return fail("CaptureDesk could not finish writing the screenshot.");
+
+    if (set_ctx && old_ctx) set_ctx(old_ctx);
+    return json({{"ok", true},
+                 {"width", w},
+                 {"height", h},
+                 {"x", mi.rcMonitor.left},
+                 {"y", mi.rcMonitor.top}});
+}
 
 // ---------------------------------------------------------------------------
 // list-sources

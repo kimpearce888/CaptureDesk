@@ -52,6 +52,7 @@ json Session::dispatch(const std::string& cmd, const json& params, uint64_t id) 
     if (cmd == "pause") return pause();
     if (cmd == "resume") return resume();
     if (cmd == "list-sources") return list_sources(params);
+    if (cmd == "grab-screen") return grab_screen(params);
     if (cmd == "transcode") return transcode(params, id);
     if (cmd == "transcode-cancel") return transcode_cancel();
     if (cmd == "version") {
@@ -108,6 +109,19 @@ json Session::list_sources(const json& kinds) {
                  {"sources", json::array()},
                  {"note", "Capture source enumeration requires Windows in the "
                           "v2 native alpha; the Export pipeline works here."}});
+#endif
+}
+
+/// One-shot desktop screenshot for the region picker (Windows only in the
+/// v2 native alpha; other platforms report a graceful failure and the shell
+/// falls back to the dim overlay).
+json Session::grab_screen(const json& params) {
+#ifdef _WIN32
+    return grab_screen_impl(params);
+#else
+    (void)params;
+    return json({{"ok", false},
+                 {"error", "Screenshots require Windows in the v2 native alpha."}});
 #endif
 }
 
