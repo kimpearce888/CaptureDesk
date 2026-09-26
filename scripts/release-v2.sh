@@ -34,6 +34,42 @@ if [ -z "$ENGINE" ]; then
 fi
 echo "engine: $ENGINE"
 
+# Stage the engine TOGETHER with its runtime DLL closure (vcpkg FFmpeg +
+# MSVC CRT app-local) — the installed engine must run on machines without a
+# system-wide FFmpeg, otherwise users hit "avformat-63.dll was not found".
+ENGINE_STAGE="build/engine-stage"
+mkdir -p "$ENGINE_STAGE"
+cp "$ENGINE" "$ENGINE_STAGE/"
+case "$ENGINE" in
+  *.exe)
+    VCPKGBIN="${VCPKG_INSTALLATION_ROOT:-/c/vcpkg}/installed/x64-windows/bin"
+    [ -d "$VCPKGBIN" ] || VCPKGBIN="/c/vcpkg/installed/x64-windows/bin"
+    if [ -d "$VCPKGBIN" ]; then
+      if command -v powershell.exe >/dev/null 2>&1 && [ -f scripts/stage-engine-runtime.ps1 ]; then
+        # Precise closure via dumpbin; fall back to the (provably complete)
+        # whole-bin copy if the script cannot run for any reason.
+        if ! powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/stage-engine-runtime.ps1 \
+              -EngineExe "$(cygpath -w "$ENGINE_STAGE/capturedesk-engine.exe")" \
+              -VcpkgBin "$(cygpath -w "$VCPKGBIN")" \
+              -OutDir "$(cygpath -w "$PWD/$ENGINE_STAGE")"; then
+          echo "precise staging failed — copying the whole vcpkg bin dir instead" >&2
+          cp -f "$VCPKGBIN"/*.dll "$ENGINE_STAGE/"
+        fi
+      else
+        cp -f "$VCPKGBIN"/*.dll "$ENGINE_STAGE/"
+      fi
+      for crt in msvcp140.dll msvcp140_1.dll msvcp140_2.dll \
+                 vcruntime140.dll vcruntime140_1.dll concrt140.dll; do
+        [ -f "/c/Windows/System32/$crt" ] && cp -f "/c/Windows/System32/$crt" "$ENGINE_STAGE/"
+      done
+    else
+      echo "WARNING: vcpkg bin dir not found — engine will miss its FFmpeg DLLs" >&2
+    fi
+    ;;
+esac
+ENGINE="$ENGINE_STAGE/capturedesk-engine.exe"
+[ -f "$ENGINE" ] || ENGINE="$ENGINE_STAGE/capturedesk-engine"
+
 echo "== 2/4 native messaging host (C#) =="
 bash scripts/build-host.sh win-x64
 HOST="native-host-cs/publish/capturedesk-native-host.exe"
@@ -72,7 +108,7 @@ if command -v makensis >/dev/null 2>&1 || [ -x tools/nsis/usr/bin/makensis ]; th
   fi
   "$MAKEN" \
     -DAPPSRC="$(W "$ROOT/build/stage")" \
-    -DENGINESRC="$(W "$ROOT/$ENGINE")" \
+    -DENGINEDIR="$(W "$ROOT/$ENGINE_STAGE")" \
     -DHOSTSRC="$(W "$ROOT/$HOST")" \
     -DCD_EXT_ID="$EXT_ID" \
     -DCD_ICON_FILE="$(W "$ROOT/installer/assets/CaptureDesk.ico")" \

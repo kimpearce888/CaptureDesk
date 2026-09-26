@@ -89,6 +89,23 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=x64-windows
       - name: Build
         run: cmake --build desktop-tauri/native/build --config Release --parallel
+      - name: Stage runtime DLLs (packaging guard — full import closure)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Exercise the exact release-pipeline staging on every push: the
+          # engine must resolve its whole import closure (vcpkg FFmpeg DLLs +
+          # MSVC CRT) from app-local files, otherwise users hit
+          # "avformat-63.dll was not found" at launch. stage-engine-runtime.ps1
+          # throws if any import cannot be shipped.
+          $exe = @('desktop-tauri/native/build/Release/capturedesk-engine.exe',
+                   'desktop-tauri/native/build/capturedesk-engine.exe') |
+                 Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $exe) { throw 'engine exe not found' }
+          ./scripts/stage-engine-runtime.ps1 `
+            -EngineExe $exe `
+            -VcpkgBin "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin" `
+            -OutDir build/engine-stage
       - name: Encode tests (WebM/MP4/GIF)
         if: runner.os == 'Linux'
         run: |

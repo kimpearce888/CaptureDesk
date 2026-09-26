@@ -67,6 +67,19 @@ jobs:
           find desktop-tauri/native/build -name '*.exe' 2>/dev/null || true
           exit 1
 
+      # The engine links vcpkg's dynamic FFmpeg (avformat-63.dll et al.) and
+      # the MSVC CRT. Without app-local copies a clean user machine fails at
+      # launch: "avformat-63.dll was not found". Stage the exact import
+      # closure next to the engine exe — the script HARD-FAILS on any
+      # unresolved import, so this doubles as the packaging regression guard.
+      - name: Stage engine runtime DLLs (FFmpeg + CRT closure)
+        shell: pwsh
+        run: |
+          ./scripts/stage-engine-runtime.ps1 `
+            -EngineExe "$env:ENGINE_PATH" `
+            -VcpkgBin "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin" `
+            -OutDir build/engine-stage
+
       # ---- C# native messaging host ---------------------------------------
       - name: Publish native host (single-file, self-contained)
         run: dotnet publish native-host-cs/capturedesk-native-host.csproj -c Release -r win-x64 -o native-host-cs/publish --nologo
@@ -153,7 +166,7 @@ jobs:
           cp desktop/assets/icons/CaptureDesk.ico installer/assets/
           "$MAKEN" \
             -DAPPSRC="$(cygpath -w "$PWD/build/stage")" \
-            -DENGINESRC="$(cygpath -w "$PWD/$ENGINE_PATH")" \
+            -DENGINEDIR="$(cygpath -w "$PWD/build/engine-stage")" \
             -DHOSTSRC="$(cygpath -w "$PWD/native-host-cs/publish/capturedesk-native-host.exe")" \
             -DCD_EXT_ID="$EXT_ID" \
             -DCD_ICON_FILE="$(cygpath -w "$PWD/installer/assets/CaptureDesk.ico")" \
@@ -222,7 +235,8 @@ jobs:
 
           ## Install
           1. Run `CaptureDeskSetup.exe` (per-user install; registers the native messaging
-             host and the `capturedesk://` handler; ships the C++ engine sidecar).
+             host and the `capturedesk://` handler; ships the C++ engine sidecar with
+             its FFmpeg runtime DLLs app-local — no system FFmpeg installation needed).
           2. Load the extension: unzip `CaptureDesk-Chrome-Extension.zip` and use
              chrome://extensions → Developer mode → *Load unpacked*.
           3. The extension talks to the desktop app through the native host. The stable

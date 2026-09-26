@@ -13,6 +13,10 @@ SetCompressor /SOLID lzma
 !ifndef ENGINESRC
   !define ENGINESRC "../desktop-tauri/native/build/Release/capturedesk-engine.exe"
 !endif
+; ENGINEDIR (optional): a full engine directory — engine exe + its runtime
+; DLLs (FFmpeg, MSVC CRT). When defined it replaces the single-file ENGINESRC
+; staging so the engine runs on machines without a system-wide FFmpeg.
+; Built by scripts/stage-engine-runtime.ps1 (release.yml / ci.yml).
 !ifndef HOSTSRC
   !define HOSTSRC "../native-host-cs/publish/capturedesk-native-host.exe"
 !endif
@@ -109,9 +113,15 @@ Section "CaptureDesk Desktop" SecMain
 
   File /r "${APPSRC}\*.*"
 
-  ; CaptureDesk native engine (C++ sidecar used for capture + export)
+  ; CaptureDesk native engine (C++ sidecar used for capture + export).
+  ; ENGINEDIR ships the exe together with its runtime DLL closure; the
+  ; loader resolves DLLs from the exe's own folder first.
   SetOutPath "$INSTDIR\engine"
+!ifdef ENGINEDIR
+  File /r "${ENGINEDIR}\*.*"
+!else
   File "${ENGINESRC}"
+!endif
 
   ; Native messaging host (C#) for the CaptureDesk Chrome extension
   SetOutPath "$INSTDIR\NativeHost"
